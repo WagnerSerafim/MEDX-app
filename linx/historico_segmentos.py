@@ -82,7 +82,7 @@ session.commit()
 session.close()
 
 log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "arquivo_log.xlsx")
+log_file_path = os.path.join(log_folder, "historic_seguimentos_log.xlsx")
 log_df.to_excel(log_file_path, index=False)
 
 print(f"✅ Novos históricos inseridos com sucesso! O arquivo de log foi salvo em: {log_file_path}")
