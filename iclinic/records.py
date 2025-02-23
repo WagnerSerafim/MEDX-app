@@ -1,3 +1,4 @@
+import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -17,29 +18,27 @@ def get_record(json):
     """Extraindo o histórico do JSON"""
     record = ""
 
-    if json["block"]:
+    if json.get("block"):
         record = json["block"][0]["tab"] + "<br><br>"
-        for i in json["block"]:
-            record +=  f"{json['block'][i]['name']}: "
-            if isinstance(json["block"][i]["value"], list):
-                for j in json["block"][i]["value"]:
-                    values += f"{json["block"][i]["value"][j]}, "
-                values = values[:-2]
-                record += f"{values} <br><br>"
-
-            else:
-                if json["block"][i]["unity"]:
-                    record += f"{json["block"][i]["value"]} {json["block"][i]["unity"]} <br>"
+        for dic in json["block"]:
+            record +=  f"{dic['name']}: "
+            if isinstance(dic["value"], list):
+                if len(dic["value"]) >1:
+                    values = ", ".join(dic["value"])
+                    record += f"{values} <br><br>"
                 else:
-                    record += f"{json["block"][i]["value"]} <br>"
+                    record += f"{dic["value"][0]} <br><br>"
+            else:
+                unity = dic.get("unity", "")
+                record += f"{dic["value"]} {unity} <br>"
     
-    if json["aditional"]:
+    if json.get("aditional"):
         if record != "":
             record += "<br><br>"
         
         record += "Texto(s) adicional(ais): <br>"
-        for i in json["aditional"]:
-            record += f"- {json["aditional"][i]["aditional_text"]}"
+        for dic in json["aditional"]:
+            record += f"- {dic["aditional_text"]}"
         
     return record
 
@@ -48,7 +47,6 @@ sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
 
-#DATABASE_URL = "mssql+pyodbc://Medizin_32373:658$JQxn@medxserver.database.windows.net:1433/MEDX31?driver=ODBC+Driver+17+for+SQL+Server"    #DEBUG
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
@@ -69,7 +67,7 @@ if not os.path.exists(log_folder):
 records_csv = input("Arquivo CSV de Histórico: ").strip()
 df = pd.read_csv(records_csv, sep=None, engine='python')
 
-df.replace("json::","",inplace=True)
+df["eventblock_pack"] = df["eventblock_pack"].astype(str).str.replace(r'^json::', '', regex=True)
 
 log_data = []
 
@@ -85,9 +83,15 @@ for index, row in df.iterrows():
     else:
         date = f"{row["date"]} {hour}"
 
-    
-    if pd.isna(row["eventblock_pack"]):
-        record = get_record(row["eventblock_pack"])
+    if not pd.isna(row["eventblock_pack"]) and isinstance(row["eventblock_pack"], str):
+        try:
+            json_data = json.loads(row["eventblock_pack"])
+            record = get_record(json_data)
+        except json.JSONDecodeError:
+            print(f"Erro ao decodificar JSON na linha {index + 2}. Pulando...")
+            continue
+    else:
+        continue
 
     new_record = HistoricoClientes(
         Histórico=record,
@@ -102,7 +106,7 @@ for index, row in df.iterrows():
         "Id do Histórico": row["pk"],
         "Id do Cliente": row["patient_id"],
         "Data": date,
-        "Histórico": sex,
+        "Histórico": record,
         "Id do Usuário": 0,
         })
 
@@ -110,10 +114,10 @@ for index, row in df.iterrows():
 
 session.commit()
 
-print("Novos contatos inseridos com sucesso!")
+print("Históricos inseridos com sucesso!")
 
 session.close()
 
 log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "patients_log.xlsx")
+log_file_path = os.path.join(log_folder, "record_log.xlsx")
 log_df.to_excel(log_file_path, index=False)

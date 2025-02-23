@@ -17,7 +17,6 @@ sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
 
-#DATABASE_URL = "mssql+pyodbc://Medizin_32373:658$JQxn@medxserver.database.windows.net:1433/MEDX31?driver=ODBC+Driver+17+for+SQL+Server"    #DEBUG
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
@@ -37,6 +36,7 @@ if not os.path.exists(log_folder):
 
 patients_csv = input("Arquivo CSV de pacientes: ").strip()
 df = pd.read_csv(patients_csv, sep=None, engine='python')
+df = df.fillna(value="")
 
 log_data = []
 
@@ -61,20 +61,20 @@ for index, row in df.iterrows():
         Nascimento=birthday,
         Sexo=sex,
         RG=truncate_value(row["rg"], 25),
-        Celular=row["mobile_phone"],
+        Celular=truncate_value(row["mobile_phone"], 25),
         Email=truncate_value(row["email"], 100),
-        Profissão=row["occupation"],
+        Profissão=truncate_value(row["occupation"], 25),
         Observações=row["observation"]
     )
 
     setattr(novo_contato, "Id do Cliente", row["patient_id"])
-    setattr(novo_contato, "CPF/CGC", row["cpf"])
-    setattr(novo_contato, "Telefone Residencial", row["home_phone"])
-    setattr(novo_contato, "Cep Residencial", row["zip_code"])
-    setattr(novo_contato, "Endereço Residencial", address)
-    setattr(novo_contato, "Endereço Comercial", row["complement"])
+    setattr(novo_contato, "CPF/CGC", truncate_value(row["cpf"], 25))
+    setattr(novo_contato, "Telefone Residencial", truncate_value(row["home_phone"], 25))
+    setattr(novo_contato, "Cep Residencial", truncate_value(row["zip_code"], 10))
+    setattr(novo_contato, "Endereço Residencial", truncate_value(address, 50))
+    setattr(novo_contato, "Endereço Comercial", truncate_value(row["complement"], 50))
     setattr(novo_contato, "Bairro Residencial", truncate_value(row["neighborhood"], 25))
-    setattr(novo_contato, "Cidade Residencial", row["city"])
+    setattr(novo_contato, "Cidade Residencial", truncate_value(row["city"], 25))
     setattr(novo_contato, "Estado Residencial", truncate_value(row["state"], 2))
     setattr(novo_contato, "País Residencial", truncate_value(row["country"], 50))
     
