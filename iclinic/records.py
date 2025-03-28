@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -64,6 +65,8 @@ log_folder = input("Informe a pasta onde deseja salvar o arquivo de log: ").stri
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
+
+csv.field_size_limit(10**6)
 records_csv = input("Arquivo CSV de Histórico: ").strip()
 df = pd.read_csv(records_csv, sep=None, engine='python')
 

@@ -1,3 +1,4 @@
+import os
 import random
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -16,7 +17,7 @@ def is_valid_date(date_str):
     except ValueError:
         return False 
 
-def truncateValue(value, max_length):
+def truncate_value(value, max_length):
     """Se o valor for maior que max_length, ele será truncado"""
     if pd.isna(value):
         return None
@@ -38,9 +39,11 @@ Contatos = Base.classes.Contatos
 excel_file = input("Caminho do arquivo de pacientes em xlsx: ")
 df = pd.read_excel(excel_file, sheet_name="Historico Pacientes")
 
-df.replace(r'\\N', '', regex=True, inplace=True)
+df = df.fillna(value="")
 
 inserted = []
+log_data = []
+
 for index, row in df.iterrows():
     try:
         if row["Paciente"] not in inserted:
@@ -53,7 +56,6 @@ for index, row in df.iterrows():
         else:
             birthday = datetime.strptime(str(row["nascimento"]), "%d-%m-%Y")
 
-        # Monta o endereço
         if pd.isna(row["numero"]) or row["numero"] == "S.N":
             address = row["endereco"]
         else:
@@ -64,26 +66,34 @@ for index, row in df.iterrows():
             if pd.isna(item) or item == "" :
                 item = None
 
-        # Cria o objeto para inserção
         novo_contato = Contatos(
-            Nome=truncateValue(row["Paciente"], 50),
+            Nome=truncate_value(row["Paciente"], 50),
             Nascimento=birthday,
             Sexo="M",
-            Celular=row["celular"],
-            Email=truncateValue(row["email"], 100),
+            Celular=truncate_value(row["celular"], 25),
+            Email=truncate_value(row["email"], 100),
         )
 
-        # Atributos adicionais
-        setattr(novo_contato, "Id do Cliente", index)
-        setattr(novo_contato, "CPF/CGC", row["cpf"])
-        setattr(novo_contato, "Cep Residencial", row["cep"])
-        setattr(novo_contato, "Endereço Residencial", truncateValue(address, 50))
-        setattr(novo_contato, "Bairro Residencial", truncateValue(row["bairro"], 25))
-        setattr(novo_contato, "Cidade Residencial", row["cidade"])
-
-        print(f"✅ ID Cliente: {index}, Nome: {row['Paciente']}, Endereço: {address}")
+        setattr(novo_contato, "Id do Cliente", index+1)
+        setattr(novo_contato, "CPF/CGC", truncate_value(row["cpf"], 25))
+        setattr(novo_contato, "Cep Residencial", truncate_value(row["cep"], 10))
+        setattr(novo_contato, "Endereço Residencial", truncate_value(address, 50))
+        setattr(novo_contato, "Bairro Residencial", truncate_value(row["bairro"], 25))
+        setattr(novo_contato, "Cidade Residencial", truncate_value(row["cidade"], 25))
         
-        # Adiciona à sessão
+        log_data.append({
+            "Id do Cliente": index,
+            "Nascimento": birthday,
+            "Sexo": "M",
+            "CPF/CGC": truncate_value(row["cpf"], 25),
+            "Celular": truncate_value(row["celular"], 25),
+            "Email": truncate_value(row["email"], 100),
+            "Cep Residencial": truncate_value(row["cep"], 10),
+            "Endereço Residencial": truncate_value(address, 50),
+            "Bairro Residencial": truncate_value(row["bairro"], 25),
+            "Cidade Residencial": truncate_value(row["cidade"], 25)
+        })
+
         session.add(novo_contato)
 
     except Exception as e:
@@ -92,5 +102,9 @@ for index, row in df.iterrows():
 session.commit()
 
 print("Novos contatos inseridos com sucesso!")
+
+# log_df = pd.DataFrame(log_data)
+# log_file_path = os.path.join(log_folder, "patients_log.xlsx")
+# log_df.to_excel(log_file_path, index=False)
 
 session.close()

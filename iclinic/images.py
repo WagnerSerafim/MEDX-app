@@ -83,18 +83,19 @@ for index, row in df.iterrows():
         setattr(new_image, "Id do Usuário", 0)
 
         log_data.append({
-            "Id do Histórico": row["pk"],
+            "Id do Histórico": 0 - count,
             "Id do Cliente": row["patient_id"],
             "Data": date,
             "Histórico": image,
             "Id do Usuário": 0,
+            "Classe": image
             })
         
         session.add(new_image)
     
 session.commit()
 
-print("Históricos inseridos com sucesso!")
+print("Imagens inseridas com sucesso!")
 
 session.close()
 

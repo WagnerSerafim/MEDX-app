@@ -1,3 +1,4 @@
+import csv
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -34,6 +35,7 @@ log_folder = input("Informe a pasta onde deseja salvar o arquivo de log: ").stri
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
+csv.field_size_limit(10**6)
 patients_csv = input("Arquivo CSV de pacientes: ").strip()
 df = pd.read_csv(patients_csv, sep=None, engine='python')
 df = df.fillna(value="")
