@@ -8,15 +8,14 @@ import pandas as pd
 import urllib
 
 def get_valid_date(json_dict):
-    date_str = json_dict.get("ATENDIdataentrada", "")
     
-    if pd.isna(date_str) or date_str in ["", "0000-00-00"]:
+    if pd.isna(json_dict) or json_dict in ["", "0000-00-00"]:
         return "01/01/1900"
     
     try:
-        date_obj = datetime.strptime(str(date_str), "%d-%m-%Y")
+        date_obj = datetime.strptime(str(json_dict), "%Y-%m-%d")
         if 1900 <= date_obj.year <= 2100:
-            return date_obj.strftime("%d/%m/%Y")
+            return date_obj.strftime("%Y/%m/%d")
         else:
             return "01/01/1900"
     except ValueError:
@@ -71,7 +70,7 @@ for dict in json_data:
     name = ""
     for patient in patients_data:
         if dict["PACIENcodigo"] == patient["PACIENcodigo"]:
-            name = dict["PACIENnome"]
+            name = patient["PACIENnome"]
             break
 
     description = f"{name} {dict["ATENDIobservacao"]}"
@@ -82,7 +81,10 @@ for dict in json_data:
     end_date = get_valid_date(dict["ATENDIdatasaida"])
 
     start_time = f"{start_date} {dict["ATENDIhoraentrada"]}"
+    start_time = datetime.strptime(start_time, "%Y/%m/%d %H:%M")
+
     end_time = f"{end_date} {dict["ATENDIhorasaida"]}"
+    end_time = datetime.strptime(end_time, "%Y/%m/%d %H:%M")
 
     new_schedulling = Agenda(
         Descrição=description,
@@ -109,10 +111,10 @@ for dict in json_data:
 
 session.commit()
 
-print("Novos contatos inseridos com sucesso!")
+print("Novos agendamentos inseridos com sucesso!")
 
 session.close()
 
 log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "schedulling_log.xlsx")
+log_file_path = os.path.join(log_folder, "log_schedulling_atendimentos.xlsx")
 log_df.to_excel(log_file_path, index=False)
