@@ -51,42 +51,50 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-
+cont = 0 
 for index, row in df.iterrows():
 
-    if row["id"] == "" or row['id']==None:
+    cont+=1
+
+    id_schedule = cont
+    id_pac = row['ID_Pac'][1:]
+    beginning = row['DataHoraComp']
+    
+    if id_schedule == "" or id_schedule == None:
         continue
 
-    if row["start_date"] == "" or row['start_date']==None:
+    if beginning == "" or beginning == None:
         continue
 
-    if row['patient_id'] == "" or row['patient_id']==None:
+    if id_pac == "" or id_pac == None:
         continue
 
-    description = f"{row['type']} {row["observation"]}"
+    description = f"{row['Descricao']} {row['Notas']}"
+    beginning_datetime = datetime.strptime(beginning, '%d/%m/%Y %H:%M')
 
-    start_time = row['start_date']
-    end_time = row['end_date']
+    ending = beginning_datetime + timedelta(minutes=30)
+    status = 1
+    id_user = 1 #Não tem ID o profissional responsável pela agenda
 
-    user = row['user_id']
+
 
     new_schedulling = Agenda(
         Descrição=description,
-        Início=start_time,
-        Final=end_time,
+        Início=beginning,
+        Final=ending,
         Status=1,
     )
 
-    setattr(new_schedulling, "Id do Agendamento", row["id"])
-    setattr(new_schedulling, "Vinculado a", row["patient_id"])
-    setattr(new_schedulling, "Id do Usuário", user)
+    setattr(new_schedulling, "Id do Agendamento", id_schedule)
+    setattr(new_schedulling, "Vinculado a", id_pac)
+    setattr(new_schedulling, "Id do Usuário", id_user)
     
     log_data.append({
-        "Id do Agendamento": row["id"],
-        "Vinculado a": row["patient_id"],
+        "Id do Agendamento": id_schedule,
+        "Vinculado a": id_pac,
         "Id do Usuário": 1,
-        "Início": start_time,
-        "Final": end_time,
+        "Início": beginning,
+        "Final": ending,
         "Descrição": description,
         "Status" : 1
     })
@@ -100,5 +108,5 @@ print(f"Novos agendamentos inseridos com sucesso!")
 session.close()
 
 log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_scheduling_attendances.xlsx")
+log_file_path = os.path.join(log_folder, "log_scheduling_COMPROMISSOSAGENDA.xlsx")
 log_df.to_excel(log_file_path, index=False)

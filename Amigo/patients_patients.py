@@ -6,7 +6,6 @@ from datetime import datetime
 import pandas as pd
 import urllib
 
-
 def truncate_value(value, max_length):
     """Se o valor for maior que max_length, ele será truncado"""
     if pd.isna(value):
@@ -25,21 +24,24 @@ def is_valid_date(date_str):
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
-dbase= input("Informe o DATABASE: ")
+dbase = input("Informe o DATABASE: ")
 patients_excel = input("Informe o caminho de patients.xlsx: ").strip()
+
+print("Conectando no Banco de dados...\n")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
 
 Base = automap_base()
-Base.prepare(autoload_with=engine) 
+Base.prepare(autoload_with=engine)
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 Contatos = Base.classes.Contatos
 
+print("Sucesso! Começando migração de pacientes...\n")
 
 log_folder = os.path.dirname(patients_excel)
 
@@ -50,9 +52,20 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
+not_inserted_data = []  
 repeated_ids_count = 0
+total_patients = len(df)
 
 for index, row in df.iterrows():
+    existing_patient = session.query(Contatos).filter(getattr(Contatos, "Id do Cliente")==row["id"]).first()
+
+    if existing_patient:
+        repeated_ids_count += 1
+        not_inserted_data.append({
+            "Id do Cliente": row["id"],
+            "Nome": row["name"]
+        })
+        continue 
 
     if not is_valid_date(row["born"]):
         birthday = datetime.strptime("01/01/1900", "%d/%m/%Y")
@@ -117,13 +130,21 @@ for index, row in df.iterrows():
 
     session.add(novo_contato)
 
-session.commit()
-
-print(f"Novos Contatos inseridos com sucesso! {len(df) - repeated_ids_count} registros inseridos.")
-print(f"{repeated_ids_count} registros com ID repetido foram ignorados.")
+if repeated_ids_count > 0:
+    print(f"Dentre {total_patients} pacientes, achamos {repeated_ids_count} ID's repetidos que não vão ser inseridos.")
+    confirm_insert = input("Quer continuar com a migração mesmo assim? (Y/N): ").strip().upper()
+    
+    if confirm_insert == "Y":
+        session.commit()
+        print(f"Novos Contatos inseridos com sucesso! {total_patients - repeated_ids_count} registros inseridos.")
+    else:
+        print(f"Migração abortada.\n")
+else:
+    session.commit()
+    print(f"Novos Contatos inseridos com sucesso! {total_patients} registros inseridos.")
 
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_patients_pacientes.xlsx")
-log_df.to_excel(log_file_path, index=False)
+log_not_inserted_df = pd.DataFrame(not_inserted_data)
+log_not_inserted_path = os.path.join(log_folder, "log_notInserted.xlsx")
+log_not_inserted_df.to_excel(log_not_inserted_path, index=False)
