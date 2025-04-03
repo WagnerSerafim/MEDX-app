@@ -1,9 +1,11 @@
 import datetime
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.automap import automap_base
 import urllib
+
+sql_log = []
 
 def is_valid_rg(rg):
     """ Verifica se o RG tem uma quantidade aceitável para ser válido. """
@@ -21,7 +23,6 @@ def is_valid_data(data):
     except:
         return False
 
-
 def update_related_records(record, table, name_column, target_id):
     items = session.query(table).filter(getattr(table, name_column) == getattr(record, 'Id do Cliente')).all()
     for item in items:
@@ -36,7 +37,7 @@ def merge_record_data(target_record, duplicate_record):
     if (getattr(target_record, 'Celular', '') == '' or getattr(target_record, 'Celular', '') == None) and is_valid_celular(getattr(duplicate_record, 'Celular')):
         setattr(target_record, 'Celular', getattr(duplicate_record, 'Celular'))
 
-    if (getattr(target_record, 'RG', '') == '' or getattr(target_record, 'RG', '') == None) and is_valid_rg(getattr(duplicate_record, 'RG')):
+    if (getattr(target_record, 'RG', '') == '' or getattr(target_record, 'RG', '') == None) and is_valid_rg(getattr(duplicate_record, 'RG')): 
         setattr(target_record, 'RG', getattr(duplicate_record, 'RG'))
     
     if (getattr(target_record, 'CPF/CGC', '') == '' or getattr(target_record, 'CPF/CGC', '') == None) and isinstance(getattr(duplicate_record, 'CPF/CGC', ''), str) and len(getattr(duplicate_record, 'CPF/CGC', '')) == 11:
@@ -55,18 +56,19 @@ def merge_record_data(target_record, duplicate_record):
         obs = getattr(target_record, 'Observações')
         obs += f"      {getattr(duplicate_record, 'Observações')}"
         setattr(target_record, 'Observações', obs)
-    
+
     if (getattr(target_record, 'Telefone Residencial', '') == '' or getattr(target_record, 'Telefone Residencial', '') == None) and isinstance(getattr(duplicate_record, 'Telefone Residencial'), str):
         setattr(target_record, 'Telefone Residencial', getattr(duplicate_record, 'Telefone Residencial'))
-    
+
     if (getattr(target_record, 'Sexo', '') == '' or getattr(target_record, 'Sexo', '') == None) and isinstance(getattr(duplicate_record, 'Sexo'), str):
         setattr(target_record, 'Sexo', getattr(duplicate_record, 'Sexo'))
-    
+
     if (getattr(target_record, 'Id da Assinatura', '') == '' or getattr(target_record, 'Id da Assinatura', '') == None) and isinstance(getattr(duplicate_record, 'Id da Assinatura'), str):
         setattr(target_record, 'Id da Assinatura', getattr(duplicate_record, 'Id da Assinatura'))
-    
-    if (getattr(target_record, 'Endereço Residencial', '') == '' or getattr(target_record, 'Endereço Residencial', '') == None) and isinstance(getattr(duplicate_record, 'Endereço Residencial'), str):
-        setattr(target_record, 'Endereço Residencial', getattr(duplicate_record, 'Endereço Residencial'))
+
+def log_sql_query(conn, cursor, statement, parameters, context, executemany):
+    """ Função para registrar os comandos SQL executados no log """
+    sql_log.append((statement, parameters))
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -74,7 +76,7 @@ dbase = input("Informe o DATABASE: ")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, echo=True)
 Base = automap_base()
 Base.prepare(autoload_with=engine)
 
@@ -130,6 +132,11 @@ for index, row in unified_df.iterrows():
 
 session.commit()
 
+log_df = pd.DataFrame(sql_log, columns=["SQL Query", "Parameters"])
+log_file_path = "sql_log.xlsx"
+log_df.to_excel(log_file_path, index=False)
+
 print("Unificação de registros concluída!")
+print(f"Log SQL salvo em: {log_file_path}")
 
 session.close()

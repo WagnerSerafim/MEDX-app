@@ -70,7 +70,7 @@ for index, row in df.iterrows():
         continue
 
     description = f"{row['Descricao']} {row['Notas']}"
-    beginning_datetime = datetime.strptime(beginning, '%d/%m/%Y %H:%M')
+    beginning_datetime = datetime.strptime(str(beginning), '%Y-%m-%d %H:%M:%S')
 
     ending = beginning_datetime + timedelta(minutes=30)
     status = 1

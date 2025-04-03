@@ -48,7 +48,7 @@ if not os.path.exists(log_folder):
 
 log_data = []
 cont=0
-
+cont_commit = 0
 for index, row in df.iterrows():
     
     record = row['Texto_Anamnese']
@@ -63,26 +63,24 @@ for index, row in df.iterrows():
     except Exception as e:
         print(f"Erro ao processar a data {row['Anam_Date']}: {e}")
         date = datetime.strptime("01/01/1900 00:00", "%d/%m/%Y %H:%M") 
-
-    for index,row in df.iterrows():
     
-        new_record = HistoricoClientes(
-            Histórico=record,
-            Data=row["Anam_Date"]
-        )
-        setattr(new_record, "Id do Cliente", row["ID_Pac"])
-        setattr(new_record, "Id do Usuário", 0)
-        setattr(new_record, "Id do Histórico", (0-row["ID_Anam"]))
-        
-        log_data.append({
-            "Id do Histórico": (0-row["ID_Anam"]),
-            "Id do Cliente": row["ID_Pac"],
-            "Data": date,
-            "Histórico": record,
-            "Id do Usuário": 0,
-        })
-        cont+=1
-        session.add(new_record)
+    new_record = HistoricoClientes(
+        Histórico=record,
+        Data=row["Anam_Date"]
+    )
+    setattr(new_record, "Id do Cliente", row["ID_Pac"])
+    setattr(new_record, "Id do Usuário", 0)
+    setattr(new_record, "Id do Histórico", (0-row["ID_Anam"]))
+    
+    log_data.append({
+        "Id do Histórico": (0-row["ID_Anam"]),
+        "Id do Cliente": row["ID_Pac"],
+        "Data": date,
+        "Histórico": record,
+        "Id do Usuário": 0,
+    })
+    cont+=1
+    session.add(new_record)
 
 session.commit()
 
