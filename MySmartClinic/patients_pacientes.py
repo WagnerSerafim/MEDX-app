@@ -50,14 +50,14 @@ print("Sucesso! Inicializando migração de pacientes MySmartClinic...\n")
 log_folder = os.path.dirname(patients_csv)
 
 csv.field_size_limit(10**6)
-df = pd.read_csv(patients_csv)
+df = pd.read_csv(patients_csv, sep=";")
 df = df.fillna(value="")
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-repeated_ids_count = 0
+cont = 0
 
 for index, row in df.iterrows():
     
@@ -65,7 +65,7 @@ for index, row in df.iterrows():
         continue
     else:
         id_patient = row["id_paciente"]
-        id_patient = re.sub(r'[a-f]','', id_patient)
+        # id_patient = re.sub(r'[a-f]','', id_patient)
     
     if row['nome'] == None or row['nome'] == '':
         continue
@@ -106,7 +106,8 @@ for index, row in df.iterrows():
         Email=truncate_value(email, 100),
     )
 
-    setattr(new_patient, "Id do Cliente", id_patient)
+    #setattr(new_patient, "Id do Cliente", id_patient)
+    setattr(new_patient, "Referências", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
     setattr(new_patient, "Cep Residencial", truncate_value(cep, 10))
     setattr(new_patient, "Endereço Residencial", truncate_value(address, 50))
@@ -115,14 +116,15 @@ for index, row in df.iterrows():
     setattr(new_patient, "Cidade Residencial", truncate_value(city, 25))
     setattr(new_patient, "Estado Residencial", truncate_value(state, 2))
     setattr(new_patient, "Telefone Residencial", truncate_value(telephone, 25))
-    setattr(new_patient, "Profissão", truncate_value(occupation, 50))
+    setattr(new_patient, "Profissão", truncate_value(occupation, 25))
     setattr(new_patient, "Pai", truncate_value(father, 50))
     setattr(new_patient, "Mãe", truncate_value(mother, 50))
     setattr(new_patient, "RG", truncate_value(rg, 25))
 
     
     log_data.append({
-        "Id do Cliente": id_patient,
+        #"Id do Cliente": id_patient,
+        "Referências": id_patient,
         "Nome": name,
         "Nascimento": birthday,
         "Sexo": sex,
@@ -142,10 +144,14 @@ for index, row in df.iterrows():
     })
 
     session.add(new_patient)
+    cont += 1
+    if cont % 1000 == 0:
+        session.commit()
+        print(f"{cont} contatos inseridos...")
 
 session.commit()
 
-print(f"Novos Contatos inseridos com sucesso!")
+print(f"{cont} novos Contatos foram inseridos com sucesso!")
 
 session.close()
 
