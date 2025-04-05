@@ -22,7 +22,7 @@ def get_record(row):
     record = ""
 
     if row['conduta'] != "" and row['conduta'] != "." and row['conduta'] != "," and row['conduta'] != None:
-        record = f"Ficha Adendo Conduta: {row['conduta']}<br>"
+        record = f"Ficha Paramedico Conduta: {row['conduta']}<br>"
 
     return record
 
@@ -45,11 +45,11 @@ session = SessionLocal()
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 Contatos = getattr(Base.classes, "Contatos")
 
-print("Sucesso! Inicializando migração de ficha adendo MySmartClinic...")
+print("Sucesso! Inicializando migração de ficha paramedico MySmartClinic...")
 
 log_folder = os.path.dirname(excel_file)
 
-df = pd.read_excel(excel_file, sheet_name="ficha_adendo")
+df = pd.read_excel(excel_file, sheet_name="ficha_paramedico")
 df = df.fillna(value="")
 
 if not os.path.exists(log_folder):
@@ -102,5 +102,5 @@ print(f"{cont} novos históricos foram inseridos com sucesso!")
 session.close()
 
 log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_record_ficha_adendo.xlsx")
+log_file_path = os.path.join(log_folder, "log_record_ficha_paramedico.xlsx")
 log_df.to_excel(log_file_path, index=False)

@@ -61,16 +61,12 @@ for index, row in df.iterrows():
     else:
         print(f"Paciente com ID {row['id_paciente']} não encontrado.")
         continue
-    
 
-    print(row['inicio'])
-    beginning = get_valid_date(row['inicio'])
-    print(f"Beggining: {beginning}")
-    ending = get_valid_date(row['fim'])
+    beginning = row['inicio']
+    ending = row['fim']
 
-    if (beginning == "" or beginning == None) or (ending == "" or ending == None):
+    if beginning == "" or beginning == None:
         continue
-
 
     description = f"{row['paciente']} {row['procedimento']} {row['cirurgia']}"
     status = 1
