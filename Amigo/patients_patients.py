@@ -5,43 +5,33 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-
-def truncate_value(value, max_length):
-    """Se o valor for maior que max_length, ele será truncado"""
-    if pd.isna(value):
-        return None
-    return str(value)[:max_length] 
-
-def is_valid_date(date_str):
-    """ Verifica se a data é válida e diferente de '0000-00-00' """
-    if pd.isna(date_str) or date_str in ["", "0000-00-00"]:
-        return False
-    try:
-        date_obj = datetime.strptime(str(date_str), "%d-%m-%Y") 
-        return 1900 <= date_obj.year <= 2100  
-    except ValueError:
-        return False 
+from utils import *
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
 patients_excel = input("Informe o caminho de patients.xlsx: ").strip()
 
-print("Conectando no Banco de dados...\n")
+print("Conectando no Banco de dados...")
 
-DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
+try:
+    DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
-engine = create_engine(DATABASE_URL)
+    engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+    Base = automap_base()
+    Base.prepare(autoload_with=engine)
 
-SessionLocal = sessionmaker(bind=engine)
-session = SessionLocal()
+    SessionLocal = sessionmaker(bind=engine)
+    session = SessionLocal()
 
-Contatos = Base.classes.Contatos
+    Contatos = Base.classes.Contatos
 
-print("Sucesso! Começando migração de pacientes...\n")
+except Exception as e:
+    print(f"Erro ao conectar ao banco de dados: {e}")
+    exit()
+
+print("Sucesso! Começando migração de pacientes...")
 
 log_folder = os.path.dirname(patients_excel)
 
@@ -57,18 +47,28 @@ repeated_ids_count = 0
 total_patients = len(df)
 
 for index, row in df.iterrows():
+
+    if row["id"] == "" or row["id"] == None:
+        print(f"ID do paciente não encontrado na linha {index + 2}. Pulando...")
+        continue
+
+    if row["name"] == "" or row["name"] == None:
+        print(f"Nome do paciente não encontrado na linha {index + 2}. Pulando...")
+        continue
+
     existing_patient = session.query(Contatos).filter(getattr(Contatos, "Id do Cliente")==row["id"]).first()
 
     if existing_patient:
         repeated_ids_count += 1
         not_inserted_data.append({
             "Id do Cliente": row["id"],
-            "Nome": row["name"]
+            "Nome": row["name"],
+            "Motivo": "ID já existe"
         })
-        continue 
+        continue     
 
     if not is_valid_date(row["born"]):
-        birthday = datetime.strptime("01/01/1900", "%d/%m/%Y")
+        birthday = "01/01/1900"
     else:
         birthday = datetime.strptime(str(row["born"]), "%Y-%m-%d")
 
@@ -79,56 +79,83 @@ for index, row in df.iterrows():
     else:
         sex = "M"
 
-    if pd.isna(row["address_number"]) or row["address_number"] == "":
+    if row["address_number"]== None or row["address_number"] == "":
         address = row["address_address"]
     else:
         number = str(row["address_number"]) 
         address = f"{row['address_address']} {number}"  
 
-    novo_contato = Contatos(
-        Nome=truncate_value(row["name"], 50),
-        Nascimento=birthday,
-        Sexo=sex,
-        RG=truncate_value(row["rg"], 25),
-        Celular=truncate_value(row["contact_cellphone"], 25),
-        Email=truncate_value(row["email"], 100),
-        Profissão=truncate_value(row["jobrole"], 25)
-    )
+    id_patient = row["id"]
+    name = truncate_value(row["name"], 50)
+    rg = truncate_value(row["rg"], 25)
+    cpf = truncate_value(row["cpf"], 25)
+    cellphone = cellphone
+    email = truncate_value(row["email"], 100)
+    profession = truncate_value(row["jobrole"], 25)
+    cep = truncate_value(row["address_cep"], 10)
+    complement = truncate_value(row["address_complement"], 50)
+    neighbourhood = truncate_value(row["address_district"], 25)
+    city = truncate_value(row["address_city"], 25)
+    father_name = truncate_value(row["father_name"], 50)
+    mother_name = truncate_value(row["mother_name"], 50)
+    telephone = truncate_value(row["contact_phone_home"], 25)
+    observation = row["observation"]
 
-    setattr(novo_contato, "Id do Cliente", row["id"])
-    setattr(novo_contato, "CPF/CGC", truncate_value(row["cpf"], 25))
-    setattr(novo_contato, "Cep Residencial", truncate_value(row["address_cep"], 10))
-    setattr(novo_contato, "Endereço Residencial", truncate_value(address, 50))
-    setattr(novo_contato, "Endereço Comercial", truncate_value(row["address_complement"], 50))
-    setattr(novo_contato, "Bairro Residencial", truncate_value(row["address_district"], 25))
-    setattr(novo_contato, "Cidade Residencial", truncate_value(row["address_city"], 25))
-    setattr(novo_contato, "Pai", truncate_value(row["mother_name"], 50))
-    setattr(novo_contato, "Mãe", truncate_value(row["father_name"], 50))
-    setattr(novo_contato, "Observações", row["observation"])
-    setattr(novo_contato, "Telefone Residencial", truncate_value(row["contact_phone_home"], 25))
-    
-    log_data.append({
-        "Id do Cliente": row["id"],
-        "Nome": truncate_value(row["name"], 50),
+    log = {
+        "Id do Cliente": id_patient,
+        "Nome": name,
         "Nascimento": birthday,
         "Sexo": sex,
-        "RG": truncate_value(row["rg"], 25),
-        "CPF/CGC": row["cpf"],
-        "Celular": row["contact_cellphone"],
-        "Email": row["email"],
-        "Profissão": row["jobrole"],
-        "Cep Residencial": row["address_cep"],
+        "RG": rg,
+        "CPF/CGC": cpf,
+        "Celular": cellphone,
+        "Email": email,
+        "Profissão": profession,
+        "Cep Residencial": cep,
         "Endereço Residencial": address,
-        "Endereço Comercial": truncate_value(row["address_complement"], 50),
-        "Bairro Residencial": truncate_value(row["address_district"], 25),
-        "Cidade Residencial": row["address_city"],
-        "Mãe": truncate_value(row["mother_name"], 50),
-        "Pai": truncate_value(row["father_name"], 50),
-        "Observações": row['observation'],
-        "Telefone Residencial": truncate_value(row["contact_phone_home"], 25)
-    })
+        "Endereço Comercial": complement,
+        "Bairro Residencial": neighbourhood,
+        "Cidade Residencial": city,
+        "Mãe": mother_name,
+        "Pai": father_name,
+        "Observações": observation,
+        "Telefone Residencial": telephone
+    }
+    try:
+        novo_contato = Contatos(
+            Nome=name,
+            Nascimento=birthday,
+            Sexo=sex,
+            RG=rg,
+            Celular=cellphone,
+            Email=email,
+            Profissão=profession
+        )
 
-    session.add(novo_contato)
+        setattr(novo_contato, "Id do Cliente", id_patient)
+        setattr(novo_contato, "CPF/CGC", cpf)
+        setattr(novo_contato, "Cep Residencial", cep)
+        setattr(novo_contato, "Endereço Residencial", address)
+        setattr(novo_contato, "Endereço Comercial", complement)
+        setattr(novo_contato, "Bairro Residencial", neighbourhood)
+        setattr(novo_contato, "Cidade Residencial", city)
+        setattr(novo_contato, "Pai", father_name)
+        setattr(novo_contato, "Mãe", mother_name)
+        setattr(novo_contato, "Observações", observation)
+        setattr(novo_contato, "Telefone Residencial", telephone)
+        
+        log_data.append(log)
+
+        session.add(novo_contato)
+    
+    except Exception as e:
+        print(f"Erro ao inserir o paciente na linha {index + 2}: {e}\n\nLog paciente: {log}")
+        not_inserted_data.append({
+            "Id do Cliente": id_patient,
+            "Nome": name,
+            "Motivo": str(e)
+        })
+        continue
 
 if repeated_ids_count > 0:
     print(f"Dentre {total_patients} pacientes, achamos {repeated_ids_count} ID's repetidos que não vão ser inseridos.")
@@ -138,13 +165,13 @@ if repeated_ids_count > 0:
         session.commit()
         print(f"Novos Contatos inseridos com sucesso! {total_patients - repeated_ids_count} registros inseridos.")
     else:
-        print(f"Migração abortada.\n")
+        print(f"Migração abortada.")
 else:
     session.commit()
     print(f"Novos Contatos inseridos com sucesso! {total_patients} registros inseridos.")
 
 session.close()
 
-log_not_inserted_df = pd.DataFrame(not_inserted_data)
-log_not_inserted_path = os.path.join(log_folder, "log_notInserted.xlsx")
-log_not_inserted_df.to_excel(log_not_inserted_path, index=False)
+create_log(not_inserted_data, log_folder, "log_patients_notInserted.xlsx")
+create_log(log_data, log_folder, "log_patients_patients.xlsx")
+
