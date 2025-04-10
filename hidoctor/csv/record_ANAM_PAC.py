@@ -51,7 +51,7 @@ cont=0
 cont_commit = 0
 for index, row in df.iterrows():
     
-    record = row['Texto_Anamnese']
+    record = rtf_to_text(row['Texto_Anamnese'])
     if record == "":
         continue
     

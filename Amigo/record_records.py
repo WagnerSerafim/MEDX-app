@@ -7,13 +7,26 @@ from datetime import datetime
 import pandas as pd
 import urllib
 
-def is_valid_date(date_str):
-    """ Verifica se a data é válida e diferente de '00-00-0000' """
-    if pd.isna(date_str) or date_str in ["", "00-00-0000"]:
+def is_valid_date(date_str, date_format):
+    if date_str in ["", None]:
         return False
     try:
-        date_obj = datetime.strptime(str(date_str), "%d-%m-%Y") 
-        return 1900 <= date_obj.year <= 2100  
+        if "/" in date_str:
+            date_str = date_str.replace("/", "-")
+        
+        date_obj = datetime.strptime(str(date_str), date_format)
+        
+        if date_format in ["%d-%m-%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"]:
+            if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31) and \
+               (0 <= date_obj.hour <= 23) and (0 <= date_obj.minute <= 59) and (0 <= date_obj.second <= 59):
+                return True
+        elif date_format in ["%d-%m-%Y %H:%M", "%Y-%m-%d %H:%M"]:
+            if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31) and \
+               (0 <= date_obj.hour <= 23) and (0 <= date_obj.minute <= 59):
+                return True
+        else:
+            if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31):
+                return True
     except ValueError:
         return False 
 
@@ -105,8 +118,10 @@ for index, row in df.iterrows():
     date = ""
 
     try:
-        if is_valid_date(row['created_at']):
-            date = f"{row["created_at"]} 00:00"
+        date_str = row['created_at'].strftime("%Y-%m-%d %H:%M")
+        if is_valid_date(date_str[:16], "%Y-%m-%d %H:%M"):
+            date = f"{date_str[:16]}"
+
     except Exception as e:
         print(f"Erro ao processar a data {row['created_at']}: {e}")
         date = datetime.strptime("01/01/1900 00:00", "%d/%m/%Y %H:%M") 
