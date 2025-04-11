@@ -123,6 +123,7 @@ print("Sucesso! Começando unificação de registros...")
 
 try:
     df = pd.read_sql(session.query(Contatos).statement, session.bind)
+    df['Nome'] = df['Nome'].str.upper()
 
     duplicates = df[df.duplicated(subset=['Nome'], keep=False)]
 
