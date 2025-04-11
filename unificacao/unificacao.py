@@ -7,6 +7,21 @@ from sqlalchemy.ext.automap import automap_base
 import urllib
 from utils.utils import create_log, is_valid_date
 
+def append_to_log(log_data, record, status):
+    log_data.append({'Id do Cliente': getattr(record, 'Id do Cliente'),
+                     'Id da Assinatura': getattr(record, 'Id da Assinatura'),
+                     'Nome': getattr(record, 'Nome'),
+                     'Situação': status,
+                     'Celular': getattr(record, 'Celular'),
+                     'Email': getattr(record, 'Email'),
+                     'RG': getattr(record, 'RG'),
+                     'CPF/CGC': getattr(record, 'CPF/CGC'),
+                     'Nascimento': getattr(record, 'Nascimento'),
+                     'Sexo': getattr(record, 'Sexo'),
+                     'Endereço Residencial': getattr(record, 'Endereço Residencial'),
+                     'Telefone Residencial': getattr(record, 'Telefone Residencial'),
+                     'Observações': getattr(record, 'Observações')})
+
 def is_valid_rg(rg):
     """ Verifica se o RG tem uma quantidade aceitável para ser válido. """
     return isinstance(rg, str) and len(rg) >= 8 and len(rg) <= 14 and rg != None
@@ -14,14 +29,6 @@ def is_valid_rg(rg):
 def is_valid_celular(celular):
     """ Verifica se o celular tem uma quantidade aceitável para ser válido. """
     return isinstance(celular, str) and len(celular) >= 9 and celular.isdigit() and celular != None
-
-# def is_valid_data(data):
-#     """ Verifica se a data de nascimento é válida e no formato correto. """
-#     try:
-#         datetime.strptime(str(data), "%d/%m/%Y")
-#         return True
-#     except:
-#         return False
 
 def update_related_records(record, table, name_column, target_id, log_sql_data):
     """ Atualiza os IDs das tabelas """
@@ -139,9 +146,7 @@ for index, row in unified_df.iterrows():
         print(f"Erro ao buscar registros duplicados: {e}")
         continue
 
-    log_data.append(duplicate_records[0].__dict__)
-    log_data[-1]['Situação'] = 'Id Principal'
-    print(f"Duplicate records [0]: {duplicate_records[0].__dict__}")
+    append_to_log(log_data, duplicate_records[0], 'Registro original')
 
     target_id = getattr(duplicate_records[0], 'Id do Cliente')
 
@@ -160,12 +165,12 @@ for index, row in unified_df.iterrows():
         update_related_records(record, EsteticaFacial, 'Id do Cliente', target_id, log_sql_data)
         
         session.commit()
+    
+    append_to_log(log_data, duplicate_records[0], 'Registro final unificado')
 
     for record in duplicate_records[1:]:
-        print(f"Record {record}")
-        print(f"Deletando registro: {record.__dict__}")
-        log_data.append(record.__dict__)
-        log_data[-1]['Situação'] = 'Registro Duplicado'
+        append_to_log(log_data, record, 'Registro duplicado/removido')
+        
         log_sql_data.append({
             'SQL Query': f"DELETE FROM Contatos WHERE Id do Cliente = {getattr(record, 'Id do Cliente')}",
             'Timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -175,9 +180,6 @@ for index, row in unified_df.iterrows():
         except Exception as e:
             print(f"Erro ao deletar registro: {e}")
 
-    print(f"Registro unificado: {duplicate_records[0].__dict__}")
-    log_data.append(duplicate_records[0].__dict__)
-    log_data[-1]['Situação'] = 'Registro final Unificado'
     session.commit()
 
 session.commit()
