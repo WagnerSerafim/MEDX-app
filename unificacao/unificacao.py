@@ -1,7 +1,7 @@
 import datetime
 import os
 import pandas as pd
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, func
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.automap import automap_base
 import urllib
@@ -140,7 +140,7 @@ for index, row in unified_df.iterrows():
 
     try:
 
-        duplicate_records = session.query(Contatos).filter(Contatos.Nome == nome).all()
+        duplicate_records = session.query(Contatos).filter(func.upper(Contatos.Nome) == nome.upper()).all()
     
     except Exception as e: 
         print(f"Erro ao buscar registros duplicados: {e}")
