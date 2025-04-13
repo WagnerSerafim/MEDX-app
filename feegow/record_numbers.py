@@ -9,9 +9,9 @@ import urllib
 from striprtf.striprtf import rtf_to_text
 from utils.utils import is_valid_date
 
-sid = input("Informe o SoftwareID: ")
-password = urllib.parse.quote_plus(input("Informe a senha: "))
-dbase = input("Informe o DATABASE: ")
+# sid = input("Informe o SoftwareID: ")
+# password = urllib.parse.quote_plus(input("Informe a senha: "))
+# dbase = input("Informe o DATABASE: ")
 path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 file = 0
