@@ -3,6 +3,9 @@ import os
 
 import pandas as pd
 
+def exists(session, id, id_table, table):
+    return session.query(table).filter(getattr(table, id_table)==id).first()
+
 def is_valid_date(date_str, date_format):
     if date_str in ["", None]:
         return False
@@ -24,6 +27,9 @@ def is_valid_date(date_str, date_format):
             if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31):
                 return True
     except ValueError:
+        return False
+    
+    except TypeError:
         return False
 
 def truncate_value(value, max_length):

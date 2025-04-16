@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -8,15 +9,26 @@ import urllib
 from utils.utils import is_valid_date, exists, create_log
 
 def get_record(row):
-    """A partir da linha do dataframe, retorna o histórico formatado"""
-    record = ''
-    if not (row['tipo_informacao'] == '' or row['tipo_informacao'] == None):
-        record += f'Tipo de histórico: {row["tipo_informacao"]}<br><br>'
+    """
+    A partir da linha do dataframe, retorna o histórico formatado.
+    Apenas chaves e valores não vazios são considerados.
+    """
+    try:
+        json_data = json.loads(row['campo'])
+    except (json.JSONDecodeError, TypeError):
+        return ''  # ou retornar um aviso tipo 'JSON inválido'
 
-    if not (row['conteudo_resumo'] == '' or row['conteudo_resumo'] == None):
-        record += f'Conteúdo do histórico: {row["conteudo_resumo"]}<br><br>'
+    campos_validos = [
+        f'{k}: {v}' for k, v in json_data.items()
+        if str(k).strip() and str(v).strip() and v not in [None, 'None']
+    ]
 
+    if not campos_validos:
+        return ''
+
+    record = 'Campo de texto form_tabelas: <br><br>' + '<br>'.join(campos_validos)
     return record
+
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -35,18 +47,27 @@ SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
+Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/_*.xlsx')
+try:
+    todos_arquivos = glob.glob(f'{path_file}/form_tabela_*.xlsx')
 
-dfs = []
+    dfs = []
 
-for arquivo in todos_arquivos:
-    df = pd.read_excel(arquivo)
-    dfs.append(df)
+    for arquivo in todos_arquivos:
+        df = pd.read_excel(arquivo)
+        dfs.append(df)
 
-df_main = pd.concat(dfs, ignore_index=True)
+    df_main = pd.concat(dfs, ignore_index=True)
+except ValueError:
+    print("Nenhum arquivo encontrado!")
+    exit()
+
+except Exception as e:
+    print(f"Erro ao ler os arquivos: {e}")
+    exit()
 
 log_folder = path_file
 
@@ -60,32 +81,26 @@ not_inserted_cont = 0
 
 for _, row in df_main.iterrows():
 
-    existing_record = exists(session, row['id'], "Id do Histórico", HistoricoClientes)
-    if existing_record:
+    patient = exists(session, row['NomePaciente'], "Nome", Contatos)
+    if patient:
+        id_patient = getattr(patient, "Id do Cliente")
+    else:
         not_inserted_cont +=1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Histórico já existe'
+        row_dict['Motivo'] = 'Paciente não encontrado'
         not_inserted_data.append(row_dict)
         continue
 
     record = get_record(row)
-    if record == "":
+    if record == "" or record == 'Campo de texto form_tabelas: <br><br>':
         not_inserted_cont +=1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Histórico vazio'
+        row_dict['Motivo'] = 'Histórico vazio ou inválido'
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = row['paciente_id']
-    if id_patient == "" or id_patient == None:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Paciente vazio'
-        not_inserted_data.append(row_dict)
-        continue
-
-    if is_valid_date(row['data_hora'], '%Y-%m-%d %H:%M:%S'):
-        date = row['data_hora']
+    if is_valid_date(row['DataHora'], '%Y-%m-%d %H:%M:%S'):
+        date = row['DataHora']
     else:
         date = '01/01/1900 00:00'
     
@@ -93,19 +108,19 @@ for _, row in df_main.iterrows():
         Histórico=record,
         Data=date
     )
-    setattr(new_record, "Id do Histórico", (row['id']))
+    # setattr(new_record, "Id do Histórico", (row['id']))
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
     
     log_data.append({
-        "Id do Histórico": (row['id']),
+        # "Id do Histórico": (row['id']),
         "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
         "Id do Usuário": 0,
     })
-    inserted_cont+=1
     session.add(new_record)
+    inserted_cont+=1
 
     if inserted_cont % 10000 == 0:
         session.commit()
@@ -118,5 +133,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_numbers.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_numbers.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_form_tabelas.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_form_tabelas.xlsx")

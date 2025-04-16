@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -8,15 +9,21 @@ import urllib
 from utils.utils import is_valid_date, exists, create_log
 
 def get_record(row):
-    """A partir da linha do dataframe, retorna o histórico formatado"""
-    record = ''
-    if not (row['tipo_informacao'] == '' or row['tipo_informacao'] == None):
-        record += f'Tipo de histórico: {row["tipo_informacao"]}<br><br>'
-
-    if not (row['conteudo_resumo'] == '' or row['conteudo_resumo'] == None):
-        record += f'Conteúdo do histórico: {row["conteudo_resumo"]}<br><br>'
-
+    """
+    A partir da linha do dataframe, retorna o histórico formatado.
+    """
+    try:
+        record = ''
+        if row['tipo'] != '' and row['tipo'] != None:
+            record += f'Tipo de histórico: {row["tipo"]}<br><br>'
+        
+        if row['conteudo'] != '' and row['conteudo'] != None:
+            record += f'Conteúdo do histórico: {row["conteudo"]}'
+    except:
+        return ''
+    
     return record
+
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -38,15 +45,10 @@ HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/_*.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/prescricao_atestados_diagnosticos_pedidosexames.xlsx')
 
-dfs = []
-
-for arquivo in todos_arquivos:
-    df = pd.read_excel(arquivo)
-    dfs.append(df)
-
-df_main = pd.concat(dfs, ignore_index=True)
+df = pd.read_excel(todos_arquivos[0])
+df = df.replace('None', '')
 
 log_folder = path_file
 
@@ -58,54 +60,46 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df_main.iterrows():
-
-    existing_record = exists(session, row['id'], "Id do Histórico", HistoricoClientes)
-    if existing_record:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Histórico já existe'
-        not_inserted_data.append(row_dict)
-        continue
+for _, row in df.iterrows():
 
     record = get_record(row)
     if record == "":
         not_inserted_cont +=1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Histórico vazio'
+        row_dict['Motivo'] = 'Histórico vazio ou inválido'
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = row['paciente_id']
-    if id_patient == "" or id_patient == None:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Paciente vazio'
-        not_inserted_data.append(row_dict)
-        continue
-
-    if is_valid_date(row['data_hora'], '%Y-%m-%d %H:%M:%S'):
-        date = row['data_hora']
+    if is_valid_date(row['datahora'], '%Y-%m-%d %H:%M:%S'):
+        date = row['datahora']
     else:
         date = '01/01/1900 00:00'
+
+    id_patient = row["PacienteId"]
+    if id_patient == "" or id_patient == None or id_patient == 'None':
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente vazio'
+        not_inserted_data.append(row_dict)
+        continue
     
     new_record = HistoricoClientes(
         Histórico=record,
         Data=date
     )
-    setattr(new_record, "Id do Histórico", (row['id']))
+    # setattr(new_record, "Id do Histórico", (row['id']))
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
     
     log_data.append({
-        "Id do Histórico": (row['id']),
+        # "Id do Histórico": (row['id']),
         "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
         "Id do Usuário": 0,
     })
-    inserted_cont+=1
     session.add(new_record)
+    inserted_cont+=1
 
     if inserted_cont % 10000 == 0:
         session.commit()
@@ -118,5 +112,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_numbers.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_numbers.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_prescricao.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_prescricao.xlsx")
