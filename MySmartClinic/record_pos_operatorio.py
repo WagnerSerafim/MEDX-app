@@ -7,16 +7,9 @@ from datetime import datetime
 import pandas as pd
 import urllib
 from striprtf.striprtf import rtf_to_text
-
-def is_valid_date(date_str):
-    """ Verifica se a data é válida e diferente de '00-00-0000' """
-    if pd.isna(date_str) or date_str in ["", "00-00-0000 00:00"]:
-        return False
-    try:
-        date_obj = datetime.strptime(str(date_str), "%d-%m-%Y %H:%M") 
-        return 1900 <= date_obj.year <= 2100  
-    except ValueError:
-        return False
+from utils.utils import create_log, is_valid_date, exists
+import csv
+import glob
     
 def get_record(row):
     record = ""
@@ -32,7 +25,7 @@ def get_record(row):
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
-excel_file = input("Informe o caminho do arquivo dados.xlsx: ")
+path_file = input("Informe o caminho do arquivo que contém os dados: ")
 
 print("Conectando no Banco de Dados...")
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
@@ -50,31 +43,47 @@ Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de pós operatório MySmartClinic...")
 
-log_folder = os.path.dirname(excel_file)
+log_folder = path_file
+csv_file = glob.glob(f'{path_file}/pos_operatorio.csv')
 
-df = pd.read_excel(excel_file, sheet_name="pos_operatorio")
+csv.field_size_limit(10**6)
+df = pd.read_csv(csv_file[0], sep=";", encoding="ISO-8859-1")
 df = df.fillna(value="")
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-cont=0
-cont_commit = 0
+inserted_cont=0
+not_inserted_data = []
+not_inserted_cont = 0
+
 for index, row in df.iterrows():
 
     existing_patient = session.query(Contatos).filter(getattr(Contatos, "Referências")==row["id_paciente"]).first()
     if existing_patient:
         id_patient = getattr(existing_patient, "Id do Cliente")
     else:
-        print(f"Paciente com ID {row['id_paciente']} não encontrado.")
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Paciente não encontrado'
+        not_inserted_data.append(row_dict)
         continue
 
     record = get_record(row)
     if record == "":
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Histórico vazio ou inválido'
+        not_inserted_data.append(row_dict)
         continue
     
-    date = row['data_criacao'] 
+    record = record.replace('_x000D_', '<br>')
+
+    if is_valid_date(row['data_criacao'], '%Y-%m-%d %H:%M:%S'):
+        date = row['data_criacao']
+    else:
+        date = '01/01/1900 00:00' 
     
     new_record = HistoricoClientes(
         Histórico=record,
@@ -91,19 +100,20 @@ for index, row in df.iterrows():
         "Histórico": record,
         "Id do Usuário": 0,
     })
-    cont+=1
+    
     session.add(new_record)
+    inserted_cont+=1
 
-    if cont % 1000 == 0:
+    if inserted_cont % 10000 == 0:
         session.commit()
-        print(f"{cont} históricos commitados com sucesso!")
 
 session.commit()
 
-print(f"{cont} novos históricos foram inseridos com sucesso!")
+print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_record_pos_operatorio.xlsx")
-log_df.to_excel(log_file_path, index=False)
+create_log(log_data, log_folder, "log_inserted_record_pos_operatorio.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_pos_operatorio.xlsx")

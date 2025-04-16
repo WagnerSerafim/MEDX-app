@@ -1,4 +1,5 @@
 import csv
+import glob
 import os
 import re
 from sqlalchemy.ext.automap import automap_base
@@ -8,28 +9,12 @@ from datetime import datetime
 import pandas as pd
 import urllib
 from striprtf.striprtf import rtf_to_text
-
-
-def truncate_value(value, max_length):
-    """Se o valor for maior que max_length, ele será truncado"""
-    if pd.isna(value):
-        return None
-    return str(value)[:max_length] 
-
-def is_valid_date(date_str):
-    """ Verifica se a data é válida e diferente de '0000-00-00' """
-    if pd.isna(date_str) or date_str in ["", "0000-00-00"]:
-        return False
-    try:
-        date_obj = datetime.strptime(str(date_str), "%Y-%m-%d") 
-        return 1900 <= date_obj.year <= 2100  
-    except ValueError:
-        return False 
+from utils.utils import create_log, is_valid_date, exists, truncate_value
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
-patients_csv = input("Informe o caminho de pacientes.csv: ").strip()
+path_file = input("Informe o caminho dos arquivos: ").strip()
 
 print("Conectando no Banco de Dados...")
 
@@ -47,39 +32,50 @@ Contatos = Base.classes.Contatos
 
 print("Sucesso! Inicializando migração de pacientes MySmartClinic...\n")
 
-log_folder = os.path.dirname(patients_csv)
+log_folder = os.path.dirname(path_file)
+csv_file = glob.glob(f'{path_file}/pacientes.csv')
 
 csv.field_size_limit(10**6)
-df = pd.read_csv(patients_csv, sep=";")
+df = pd.read_csv(csv_file[0], sep=";", encoding="ISO-8859-1")
 df = df.fillna(value="")
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-cont = 0
+inserted_cont=0
+not_inserted_data = []
+not_inserted_cont = 0
 
 for index, row in df.iterrows():
     
     if row["id_paciente"] == None or row["id_paciente"] == '':
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict["Motivo"] = "ID do paciente está vazio"
+        not_inserted_data.append(row_dict)
         continue
     else:
         id_patient = row["id_paciente"]
-        # id_patient = re.sub(r'[a-f]','', id_patient)
     
     if row['nome'] == None or row['nome'] == '':
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict["Motivo"] = "Nome do paciente está vazio"
+        not_inserted_data.append(row_dict)
         continue
     else:
         name = row['nome']
 
-    if not is_valid_date(row["data_nascimento"]):
-        birthday = datetime.strptime("01/01/1900", "%d/%m/%Y")
+    if is_valid_date(row["data_nascimento"], "%Y-%m-%d"):
+        birthday = row['data_nascimento']
     else:
-        birthday = datetime.strptime(str(row["data_nascimento"]), "%Y-%m-%d")
+        birthday = '01/01/1900'
 
-    sex = row['sexo']
-    if sex != 'M' and sex != 'F':
+    if row['sexo'] != 'M' and row['sexo'] != 'F':
         sex = 'M'
+    else:
+        sex = row['sexo']
 
     email = row['email']
     cpf = row['cpf']
@@ -144,17 +140,19 @@ for index, row in df.iterrows():
     })
 
     session.add(new_patient)
-    cont += 1
-    if cont % 1000 == 0:
+    
+    inserted_cont+=1
+    if inserted_cont % 10000 == 0:
         session.commit()
-        print(f"{cont} contatos inseridos...")
 
 session.commit()
 
-print(f"{cont} novos Contatos foram inseridos com sucesso!")
+print(f"{inserted_cont} novos contatos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} contatos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_patients_pacientes.xlsx")
-log_df.to_excel(log_file_path, index=False)
+create_log(log_data, log_folder, "log_inserted_patients_pacientes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_patients_pacientes.xlsx")
+
