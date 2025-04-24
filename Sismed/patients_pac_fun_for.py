@@ -7,16 +7,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-
-def is_valid_date(date_str):
-    """ Verifica se a data é válida e diferente de '0000-00-00' """
-    if pd.isna(date_str) or date_str in ["", "0000-00-00"]:
-        return False
-    try:
-        date_obj = datetime.strptime(str(date_str), "%d-%m-%Y") 
-        return 1900 <= date_obj.year <= 2100  
-    except ValueError:
-        return False 
+from utils.utils import is_valid_date, exists, create_log, truncate_value 
 
 def replace_null_with_empty_string(data):
     if isinstance(data, dict): 
@@ -26,12 +17,7 @@ def replace_null_with_empty_string(data):
     elif data is None:  
         return ""
     else:
-        return data
-
-def truncate_value(value, max_length):
-    if pd.isna(value):
-        return None
-    return str(value)[:max_length]     
+        return data    
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -75,10 +61,10 @@ for dict in json_data:
                 city = city_dict["CIDADEnome"]
                 break
 
-    if not is_valid_date(dict["PACIENdatanascimento"]):
-        birthday = datetime.strptime("01/01/1900", "%d/%m/%Y")
+    if is_valid_date(dict["PACIENdatanascimento"], "%Y-%m-%d"):
+        birthday = dict['PACIENdatanascimento']
     else:
-        birthday = datetime.strptime(str(dict["PACIENdatanascimento"]), "%d-%m-%Y")
+        birthday = '01/01/1900'
 
     sex = "M" if pd.isna(dict["PACIENsexo"]) or dict["PACIENsexo"] == "" else dict["PACIENsexo"].upper()
 

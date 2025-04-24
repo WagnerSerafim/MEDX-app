@@ -1,18 +1,23 @@
+import csv
 import glob
 import os
+import re
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+from datetime import datetime
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value
+from striprtf.striprtf import rtf_to_text
+from utils.utils import create_log, is_valid_date, exists, truncate_value
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
-dbase = input("Informe o DATABASE: ")
-path_file = input("Informe o caminho da pasta que contém os arquivos: ")
+dbase= input("Informe o DATABASE: ")
+path_file = input("Informe o caminho dos arquivos: ").strip()
 
 print("Conectando no Banco de Dados...")
+
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
@@ -23,16 +28,17 @@ Base.prepare(autoload_with=engine)
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-Contatos = getattr(Base.classes, "Contatos")
+Contatos = Base.classes.Contatos
 
-print("Sucesso! Inicializando migração de Contatos...")
+print("Sucesso! Inicializando migração de Contatos...\n")
 
-extension_file = glob.glob(f'{path_file}/pacientes.xlsx')
+log_folder = os.path.dirname(path_file)
+csv_file = glob.glob(f'{path_file}/pacientes*.csv')
 
-df = pd.read_excel(extension_file[0])
-df = df.replace('None', '')
-
-log_folder = path_file
+csv.field_size_limit(10**6)
+df = pd.read_csv(csv_file[0], sep=';', quotechar='"')
+df = df.fillna(value="")
+df.columns = df.columns.str.strip()
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
@@ -42,58 +48,62 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df.iterrows():
 
-    existing_record = exists(session, row['id'], "Id do Cliente", Contatos)
-    if existing_record:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente já existe'
-        not_inserted_data.append(row_dict)
-        continue
-
-    if row["id"] == None or row["id"] == '' or row["id"] == 'None':
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente vazio'
-        not_inserted_data.append(row_dict)
-        continue
-    else:
-        id_patient = row["id"]
+for index, row in df.iterrows():
     
-    if row['nome_paciente'] == None or row['nome_paciente'] == '' or row['nome_paciente'] == 'None':
-        not_inserted_cont +=1
+    existing_patient = exists(session, row['CODIGO'], "Id do Cliente", Contatos)
+    if existing_patient:
+        not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Nome do Paciente vazio'
+        row_dict["Motivo"] = "ID do paciente já existe"
+        not_inserted_data.append(row_dict)
+        continue
+
+    if row['CODIGO'] == None or row['CODIGO'] == '':
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict["Motivo"] = "ID do paciente está vazio"
         not_inserted_data.append(row_dict)
         continue
     else:
-        name = row['nome_paciente']
-
-    if is_valid_date(row["nascimento"], "%Y-%m-%d"):
-        birthday = row['nascimento']
+        id_patient = row['CODIGO']
+    
+    if row['NOME'] == None or row['NOME'] == '':
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict["Motivo"] = "Nome do paciente está vazio"
+        not_inserted_data.append(row_dict)
+        continue
+    else:
+        name = row['NOME']
+    
+    if is_valid_date(row['NASCIMENTO'], "%d-%m-%Y"):
+        row['NASCIMENTO'] = row['NASCIMENTO'].replace("/", "-")
+        birthday = datetime.strptime(str(row['NASCIMENTO']), "%d-%m-%Y").strftime("%Y-%m-%d")
     else:
         birthday = '01/01/1900'
 
-    sex = 'M'
+    if row['SEXO'] != 'M' and row['SEXO'] != 'F':
+        sex = 'M'
+    else:
+        sex = row['SEXO']
 
-    email = row['email']
-    cpf = row['cpf']
-    rg = row['Documento']
-    telephone = row['fixo_1']
-    cellphone = row['celular']
-    cep = None
-    complement = None
-    neighbourhood = None
-    city = None
-    state = None
-    occupation = row['profissao']
+    email = row['EMAIL']
+    cpf = row['CPF']
+    rg = row['RG']
+    telephone = None
+    cellphone = row['TELEFONE']
+    cep = row['CEP']
+    complement = row['COMPLEMENTO']
+    neighbourhood = row['BAIRRO']
+    city = row['CIDADE']
+    state = row['ESTADO']
+    occupation = None
     mother = None
     father = None
-    observation = row['Observacoes']
 
 
-    address = None
+    address = f"{row['RUA']} {row['NUMERO']}"
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -139,7 +149,7 @@ for _, row in df.iterrows():
     })
 
     session.add(new_patient)
-
+    
     inserted_cont+=1
     if inserted_cont % 10000 == 0:
         session.commit()
@@ -154,3 +164,4 @@ session.close()
 
 create_log(log_data, log_folder, "log_inserted_patients_pacientes.xlsx")
 create_log(not_inserted_data, log_folder, "log_not_inserted_patients_pacientes.xlsx")
+
