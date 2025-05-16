@@ -27,6 +27,7 @@ SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 Agenda = getattr(Base.classes, "Agenda")
+Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
@@ -46,6 +47,18 @@ not_inserted_data = []
 not_inserted_cont = 0
 
 for _, row in df.iterrows():
+
+    patient = exists(session, row["paciente_id"], "Id do Cliente", Contatos)
+    if not patient:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente não existe no banco de dados'
+        not_inserted_data.append(row_dict)
+        continue
+    else:
+        description = f"{patient.Nome}"
+        if row['Notas'] != "" and row['Notas'] != None and row['Notas'] != 'nan':
+            description += f" - {row['Notas']}"
 
     exists_row = session.query(Agenda).filter(getattr(Agenda, 'Id do Agendamento') == row["id"]).first()
     if exists_row:
@@ -78,9 +91,7 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    description = f"{row['Notas']}"
-
-    user = row['usuario_id']
+    user = row['profissional_id']
 
     new_schedulling = Agenda(
         Descrição=description,
@@ -96,7 +107,7 @@ for _, row in df.iterrows():
     log_data.append({
         "Id do Agendamento": id_scheduling,
         "Vinculado a": id_patient,
-        "Id do Usuário": 1,
+        "Id do Usuário": user,
         "Início": start_time,
         "Final": end_time,
         "Descrição": description,

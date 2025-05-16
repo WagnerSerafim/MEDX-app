@@ -26,10 +26,12 @@ def is_valid_date(date_str, date_format):
         else:
             if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31):
                 return True
-    except ValueError:
+    except ValueError as e:
+        print(f"Erro de valor na data {date_str}: {e}")
         return False
     
     except TypeError:
+        print(f"Erro de tipo na data {date_str}: {e}")
         return False
 
 def truncate_value(value, max_length):

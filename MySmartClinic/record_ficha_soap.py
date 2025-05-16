@@ -12,16 +12,23 @@ import csv
 import glob
     
 def get_record(row):
+    
     record = ""
     
-    if row['anamnese'] != "" and row['anamnese'] != "." and row['anamnese'] != "," and row['anamnese'] != None:
-        record += f"Ficha Paramedico anamnese: {row['anamnese']}<br>"
+    if row['subjetivo'] != "" and row['subjetivo'] != "." and row['subjetivo'] != "," and row['subjetivo'] != None:
+        record += f"Subjetivo: {row['subjetivo']}<br>"
 
-    if row['exame_fisico'] != "" and row['exame_fisico'] != "." and row['exame_fisico'] != "," and row['exame_fisico'] != None:
-        record += f"Ficha Paramedico Exame Fisico: {row['exame_fisico']}<br>"
+    if row['objetivo'] != "" and row['objetivo'] != "." and row['objetivo'] != "," and row['objetivo'] != None:
+        record += f"Objetivo: {row['objetivo']}<br>"
 
-    if row['conduta'] != "" and row['conduta'] != "." and row['conduta'] != "," and row['conduta'] != None:
-        record = f"Ficha Paramedico Conduta: {row['conduta']}<br>"
+    if row['exame'] != "" and row['exame'] != "." and row['exame'] != "," and row['exame'] != None:
+        record = f"Exame: {row['exame']}<br>"
+
+    if row['avaliacao'] != "" and row['avaliacao'] != "." and row['avaliacao'] != "," and row['avaliacao'] != None:
+        record += f"Avaliação: {row['avaliacao']}<br>"
+    
+    if row['plano'] != "" and row['plano'] != "." and row['plano'] != "," and row['plano'] != None:
+        record += f"Plano: {row['plano']}<br>"
 
     return record
 
@@ -47,7 +54,7 @@ Contatos = getattr(Base.classes, "Contatos")
 print("Sucesso! Inicializando migração de ficha paramedico MySmartClinic...")
 
 log_folder = path_file
-csv_file = glob.glob(f'{path_file}/ficha_paramedico.csv')
+csv_file = glob.glob(f'{path_file}/ficha_soap.csv')
 
 csv.field_size_limit(10**6)
 df = pd.read_csv(csv_file[0], sep=";", encoding="ISO-8859-1")
@@ -83,8 +90,8 @@ for index, row in df.iterrows():
     
     record = record.replace('_x000D_', '<br>')
 
-    if is_valid_date(row['data_criacao'], '%Y-%m-%d %H:%M:%S'):
-        date = row['data_criacao']
+    if is_valid_date(row['data'], '%Y-%m-%d %H:%M:%S'):
+        date = row['data']
     else:
         date = '01/01/1900 00:00' 
     
@@ -118,5 +125,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_ficha_paramedico.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_ficha_paramedico.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_ficha_soap.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_ficha_soap.xlsx")

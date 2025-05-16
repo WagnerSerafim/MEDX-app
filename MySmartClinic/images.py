@@ -1,34 +1,18 @@
+import csv
+import glob
 import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from datetime import datetime
 import pandas as pd
 import urllib
-from striprtf.striprtf import rtf_to_text
-from utils.utils import create_log, is_valid_date, exists
-import csv
-import glob
-    
-def get_record(row):
-    record = ""
-    
-    if row['anamnese'] != "" and row['anamnese'] != "." and row['anamnese'] != "," and row['anamnese'] != None:
-        record += f"Ficha Paramedico anamnese: {row['anamnese']}<br>"
-
-    if row['exame_fisico'] != "" and row['exame_fisico'] != "." and row['exame_fisico'] != "," and row['exame_fisico'] != None:
-        record += f"Ficha Paramedico Exame Fisico: {row['exame_fisico']}<br>"
-
-    if row['conduta'] != "" and row['conduta'] != "." and row['conduta'] != "," and row['conduta'] != None:
-        record = f"Ficha Paramedico Conduta: {row['conduta']}<br>"
-
-    return record
+from utils.utils import is_valid_date, exists, create_log
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
-path_file = input("Informe o caminho do arquivo que contém os dados: ")
+path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 print("Conectando no Banco de Dados...")
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
@@ -44,14 +28,15 @@ session = SessionLocal()
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 Contatos = getattr(Base.classes, "Contatos")
 
-print("Sucesso! Inicializando migração de ficha paramedico MySmartClinic...")
+print("Sucesso! Inicializando migração de Anexos...")
 
 log_folder = path_file
-csv_file = glob.glob(f'{path_file}/ficha_paramedico.csv')
+csv_file = glob.glob(f'{path_file}/relacao_arquivos.csv')
 
 csv.field_size_limit(10**6)
-df = pd.read_csv(csv_file[0], sep=";", encoding="ISO-8859-1")
+df = pd.read_csv(csv_file[0], sep=",", encoding="ISO-8859-1")
 df = df.fillna(value="")
+print(df.head(10))
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
@@ -73,37 +58,36 @@ for index, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    record = get_record(row)
+    record = row['URL']
     if record == "":
-        not_inserted_cont += 1
+        not_inserted_cont +=1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Histórico vazio ou inválido'
+        row_dict['Motivo'] = 'Anexo vazio ou inválido'
         not_inserted_data.append(row_dict)
         continue
-    
-    record = record.replace('_x000D_', '<br>')
 
-    if is_valid_date(row['data_criacao'], '%Y-%m-%d %H:%M:%S'):
-        date = row['data_criacao']
+    if is_valid_date(row['data'], '%Y-%m-%d %H:%M:%S'):
+        date = row['data']
     else:
-        date = '01/01/1900 00:00' 
+        date = '01/01/1900 00:00'
     
     new_record = HistoricoClientes(
         Histórico=record,
-        Data=date
+        Data=date,
+        Classe = record
     )
-    # setattr(new_record, "Id do Histórico", (0-row["ID_Anam"]))
+    # setattr(new_record, "Id do Histórico", (row['id']))
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
     
+    
     log_data.append({
-        # "Id do Histórico": (0-row["ID_Anam"]),
+        # "Id do Histórico": (row['id']),
         "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
         "Id do Usuário": 0,
     })
-
     session.add(new_record)
     inserted_cont+=1
 
@@ -112,11 +96,11 @@ for index, row in df.iterrows():
 
 session.commit()
 
-print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
+print(f"{inserted_cont} novos anexos foram inseridos com sucesso!")
 if not_inserted_cont > 0:
-    print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")
+    print(f"{not_inserted_cont} anexos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_ficha_paramedico.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_ficha_paramedico.xlsx")
+create_log(log_data, log_folder, "log_inserted_images.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_images.xlsx")

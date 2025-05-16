@@ -43,23 +43,23 @@ not_inserted_data = []
 not_inserted_cont = 0
 
 for _, row in df.iterrows():
+    
+    existing_record = exists(session, row['Id do Cliente'], "Id do Cliente", Contatos)
+    if existing_record:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Cliente já existe'
+        not_inserted_data.append(row_dict)
+        continue
 
-    # existing_record = exists(session, row['id'], "Id do Cliente", Contatos)
-    # if existing_record:
-    #     not_inserted_cont +=1
-    #     row_dict = row.to_dict()
-    #     row_dict['Motivo'] = 'Id do Cliente já existe'
-    #     not_inserted_data.append(row_dict)
-    #     continue
-
-    # if row["id"] == None or row["id"] == '' or row["id"] == 'None':
-    #     not_inserted_cont +=1
-    #     row_dict = row.to_dict()
-    #     row_dict['Motivo'] = 'Id do Cliente vazio'
-    #     not_inserted_data.append(row_dict)
-    #     continue
-    # else:
-    #     id_patient = row["id"]
+    if row["Id do Cliente"] == None or row["Id do Cliente"] == '' or row["Id do Cliente"] == 'None':
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Cliente vazio'
+        not_inserted_data.append(row_dict)
+        continue
+    else:
+        id_patient = row["Id do Cliente"]
     
     if row['Nome completo'] == None or row['Nome completo'] == '' or row['Nome completo'] == 'None':
         not_inserted_cont +=1
@@ -70,14 +70,14 @@ for _, row in df.iterrows():
     else:
         name = row['Nome completo']
 
-    if is_valid_date(row["Data nascimento"], "%Y-%m-%d"):
-        birthday = row['Data nascimento']
+    if is_valid_date(str(row["Data nascimento"]), "%Y-%m-%d %H:%M:%S"):
+        birthday = str(row['Data nascimento'])
     else:
         birthday = '01/01/1900'
 
     sex = row['Gênero']
     email = row['E-mail']
-    cpf = row['CPF']
+    cpf = str(row['CPF'])
     rg = None
     telephone = row['Telefone']
     cellphone = row['Celular']
@@ -92,7 +92,8 @@ for _, row in df.iterrows():
     observation = None
 
 
-    address = f"{row['Endereco']} {row['Número']}"
+    address = f"{row['Endereco']} {str(row['Número'])}"
+    address = truncate_value(address, 50)
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -102,10 +103,10 @@ for _, row in df.iterrows():
         Email=truncate_value(email, 100),
     )
 
-    # setattr(new_patient, "Id do Cliente", id_patient)
+    setattr(new_patient, "Id do Cliente", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
     setattr(new_patient, "Cep Residencial", truncate_value(cep, 10))
-    setattr(new_patient, "Endereço Residencial", truncate_value(address, 50))
+    setattr(new_patient, "Endereço Residencial", address)
     setattr(new_patient, "Endereço Comercial", truncate_value(complement, 50))
     setattr(new_patient, "Bairro Residencial", truncate_value(neighbourhood, 25))
     setattr(new_patient, "Cidade Residencial", truncate_value(city, 25))
