@@ -76,6 +76,8 @@ for _, row in df_main.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
+    record = record.replace('_x000D_', ' ')
+
     id_patient = row['paciente_id']
     if id_patient == "" or id_patient == None:
         not_inserted_cont +=1

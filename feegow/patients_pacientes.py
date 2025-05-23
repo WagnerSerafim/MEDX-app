@@ -30,7 +30,6 @@ print("Sucesso! Inicializando migração de Contatos...")
 extension_file = glob.glob(f'{path_file}/pacientes.xlsx')
 
 df = pd.read_excel(extension_file[0])
-df = df.replace('None', '')
 
 log_folder = path_file
 
@@ -75,7 +74,11 @@ for _, row in df.iterrows():
     else:
         birthday = '01/01/1900'
 
-    sex = 'M'
+    if row['sexo'] == 2.0:
+        sex = 'F'
+    else:
+        sex = 'M'
+    
 
     email = row['email']
     cpf = row['cpf']
