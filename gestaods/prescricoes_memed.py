@@ -90,7 +90,8 @@ for index, row in df.iterrows():
 
     if not pd.isna(row["Json"]) and isinstance(row["Json"], str):
         try:
-            json_data = json.loads(row["Json"])
+            json_str = row["Json"].strip("'")
+            json_data = json.loads(json_str)
             record, id_record, error_message = get_record(json_data)
 
             if record is None or record == "":
@@ -119,7 +120,7 @@ for index, row in df.iterrows():
         row_dict['Motivo'] = 'Id já existe no banco de dados'
         not_inserted_data.append(row_dict)
         continue
-    
+
     if is_valid_date(row['Data'], '%d-%m-%Y %H:%M:%S'):
         date = row['Data']
     else:
