@@ -30,7 +30,7 @@ def is_valid_date(date_str, date_format):
         print(f"Erro de valor na data {date_str}: {e}")
         return False
     
-    except TypeError:
+    except TypeError as e:
         print(f"Erro de tipo na data {date_str}: {e}")
         return False
 

@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 import glob
 import json
 import os
@@ -17,6 +18,8 @@ def get_record(json):
         else:
             return None, None, "Campo id não encontrado no JSON"
 
+        record = ""
+        
         if json.get('medicamentos'):
             record += f"Prescrição(ões) Memed:<br><br>"
             if isinstance(json['medicamentos'], list):
@@ -42,7 +45,6 @@ def get_record(json):
                             record += f"Fabricante: {medicamento.get('fabricante', '')} <br>"
                         
                         record += "<br>"
-    
 
     except Exception as e:
         return None, None, f"Erro ao processar o JSON {json}: {e}"
@@ -73,10 +75,17 @@ print("Sucesso! Inicializando migração de Histórico...")
 
 log_folder = path_file
 csv_file = glob.glob(f'{path_file}/prescricoes_memed.csv')
-
 csv.field_size_limit(10**6)
-df = pd.read_csv(csv_file[0], sep=";")
-df = df.fillna(value="")
+
+with open(csv_file[0], "r", encoding="utf-8") as f:
+    lines = f.readlines()
+
+data = [line.strip().split(";", maxsplit=5) for line in lines]  
+df = pd.DataFrame(data, columns=["Cod Paciente", "Nome Paciente", "Cod Medico", "Nome Medico", "Data", "Json"])
+
+# 
+# df = pd.read_csv(csv_file[0], sep=";", quotechar="'", engine='python')
+# df = df.fillna(value="")
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
@@ -90,7 +99,11 @@ for index, row in df.iterrows():
 
     if not pd.isna(row["Json"]) and isinstance(row["Json"], str):
         try:
+<<<<<<< HEAD
             json_str = row["Json"].strip("'")
+=======
+            json_str = row["Json"].replace("'","")
+>>>>>>> 1075fe644f33acb2969d62feb99e1cb627bd4467
             json_data = json.loads(json_str)
             record, id_record, error_message = get_record(json_data)
 
@@ -120,9 +133,14 @@ for index, row in df.iterrows():
         row_dict['Motivo'] = 'Id já existe no banco de dados'
         not_inserted_data.append(row_dict)
         continue
+<<<<<<< HEAD
 
+=======
+    
+    print(row['Data'])
+>>>>>>> 1075fe644f33acb2969d62feb99e1cb627bd4467
     if is_valid_date(row['Data'], '%d-%m-%Y %H:%M:%S'):
-        date = row['Data']
+        date = datetime.strptime(row['Data'].replace("/", "-"), "%d-%m-%Y %H:%M:%S")
     else:
         not_inserted_cont += 1
         row_dict = row.to_dict()

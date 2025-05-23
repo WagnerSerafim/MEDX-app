@@ -99,6 +99,8 @@ for _, row in df_main.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
+    record = record.replace('_x000D_', ' ')
+
     if is_valid_date(row['DataHora'], '%Y-%m-%d %H:%M:%S'):
         date = row['DataHora']
     else:

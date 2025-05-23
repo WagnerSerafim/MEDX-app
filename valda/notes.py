@@ -112,5 +112,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_prescricao.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_prescricao.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_notes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_notes.xlsx")
