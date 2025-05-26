@@ -77,11 +77,68 @@ def merge_record_data(target_record, duplicate_record):
         if (getattr(target_record, 'Telefone Residencial', '') == '' or getattr(target_record, 'Telefone Residencial', '') == None) and isinstance(getattr(duplicate_record, 'Telefone Residencial'), str):
             setattr(target_record, 'Telefone Residencial', getattr(duplicate_record, 'Telefone Residencial'))
 
+        if (getattr(target_record, 'Telefone Residencial 1', '') == '' or getattr(target_record, 'Telefone Residencial 1', '') == None) and isinstance(getattr(duplicate_record, 'Telefone Residencial 1'), str):
+            setattr(target_record, 'Telefone Residencial 1', getattr(duplicate_record, 'Telefone Residencial 1'))
+
+        if (getattr(target_record, 'Telefone Comercial', '') == '' or getattr(target_record, 'Telefone Comercial', '') == None) and isinstance(getattr(duplicate_record, 'Telefone Comercial'), str):
+            setattr(target_record, 'Telefone Comercial', getattr(duplicate_record, 'Telefone Comercial'))
+        
         if (getattr(target_record, 'Sexo', '') == '' or getattr(target_record, 'Sexo', '') == None) and isinstance(getattr(duplicate_record, 'Sexo'), str):
             setattr(target_record, 'Sexo', getattr(duplicate_record, 'Sexo'))
 
-        if (getattr(target_record, 'Id da Assinatura', '') == '' or getattr(target_record, 'Id da Assinatura', '') == None) and isinstance(getattr(duplicate_record, 'Id da Assinatura'), str):
+        if (getattr(target_record, 'Id da Assinatura', '') == '' or getattr(target_record, 'Id da Assinatura', '') == None) and isinstance(getattr(duplicate_record, 'Id da Assinatura'), int):
             setattr(target_record, 'Id da Assinatura', getattr(duplicate_record, 'Id da Assinatura'))
+
+        if (getattr(target_record, 'Estado Residencial', '') == '' or getattr(target_record, 'Estado Residencial', '') == None) and isinstance(getattr(duplicate_record, 'Estado Residencial'), str):
+            setattr(target_record, 'Estado Residencial', getattr(duplicate_record, 'Estado Residencial'))
+
+        if (getattr(target_record, 'Cidade Residencial', '') == '' or getattr(target_record, 'Cidade Residencial', '') == None) and isinstance(getattr(duplicate_record, 'Cidade Residencial'), str):
+            setattr(target_record, 'Cidade Residencial', getattr(duplicate_record, 'Cidade Residencial'))
+
+        if (getattr(target_record, 'Bairro Residencial', '') == '' or getattr(target_record, 'Bairro Residencial', '') == None) and isinstance(getattr(duplicate_record, 'Bairro Residencial'), str):
+            setattr(target_record, 'Bairro Residencial', getattr(duplicate_record, 'Bairro Residencial'))
+        
+        if (getattr(target_record, 'Cep Residencial', '') == '' or getattr(target_record, 'Cep Residencial', '') == None) and isinstance(getattr(duplicate_record, 'Cep Residencial'), str):
+            setattr(target_record, 'Cep Residencial', getattr(duplicate_record, 'Cep Residencial'))
+
+        if (getattr(target_record, 'Profissão', '') == '' or getattr(target_record, 'Profissão', '') == None) and isinstance(getattr(duplicate_record, 'Profissão'), str):
+            setattr(target_record, 'Profissão', getattr(duplicate_record, 'Profissão'))
+        
+        if (getattr(target_record, 'Referências', '') == '' or getattr(target_record, 'Referências', '') == None) and isinstance(getattr(duplicate_record, 'Referências'), str):
+            setattr(target_record, 'Referências', getattr(duplicate_record, 'Referências'))
+        
+        if (getattr(target_record, 'Id do Convênio', '') == '' or getattr(target_record, 'Id do Convênio', '') == None) and isinstance(getattr(duplicate_record, 'Id do Convênio'), int):
+            setattr(target_record, 'Id do Convênio', getattr(duplicate_record, 'Id do Convênio'))
+
+        if (getattr(target_record, 'Mãe', '') == '' or getattr(target_record, 'Mãe', '') == None) and isinstance(getattr(duplicate_record, 'Mãe'), str):
+            setattr(target_record, 'Mãe', getattr(duplicate_record, 'Mãe'))
+        
+        if (getattr(target_record, 'Pai', '') == '' or getattr(target_record, 'Pai', '') == None) and isinstance(getattr(duplicate_record, 'Pai'), str):
+            setattr(target_record, 'Pai', getattr(duplicate_record, 'Pai'))
+
+        if (getattr(target_record, 'Como conheceu', '') == '' or getattr(target_record, 'Como conheceu', '') == None) and isinstance(getattr(duplicate_record, 'Como conheceu'), str):
+            setattr(target_record, 'Como conheceu', getattr(duplicate_record, 'Como conheceu'))
+        
+        if (getattr(target_record, 'Indicado por', '') == '' or getattr(target_record, 'Indicado por', '') == None) and isinstance(getattr(duplicate_record, 'Indicado por'), str):
+            setattr(target_record, 'Indicado por', getattr(duplicate_record, 'Indicado por'))
+        
+        if (getattr(target_record, 'Contato', '') == '' or getattr(target_record, 'Contato', '') == None) and isinstance(getattr(duplicate_record, 'Contato'), str):
+            setattr(target_record, 'Contato', getattr(duplicate_record, 'Contato'))
+        
+        if (getattr(target_record, 'Tags', '') == '' or getattr(target_record, 'Tags', '') == None) and isinstance(getattr(duplicate_record, 'Tags'), str):
+            setattr(target_record, 'Tags', getattr(duplicate_record, 'Tags'))
+        
+        if (getattr(target_record, 'Exclui_Mkt', '') == '' or getattr(target_record, 'Exclui_Mkt', '') == None) and isinstance(getattr(duplicate_record, 'Exclui_Mkt'), str):
+            setattr(target_record, 'Exclui_Mkt', getattr(duplicate_record, 'Exclui_Mkt'))
+        
+        if (getattr(target_record, 'Nome Social', '') == '' or getattr(target_record, 'Nome Social', '') == None) and isinstance(getattr(duplicate_record, 'Nome Social'), str):
+            setattr(target_record, 'Nome Social', getattr(duplicate_record, 'Nome Social'))
+        
+        if (getattr(target_record, 'NumeroCNS', '') == '' or getattr(target_record, 'NumeroCNS', '') == None) and isinstance(getattr(duplicate_record, 'NumeroCNS'), str):
+            setattr(target_record, 'NumeroCNS', getattr(duplicate_record, 'NumeroCNS'))
+            
+        if (getattr(target_record, 'Tipo', '') == '' or getattr(target_record, 'Tipo', '') == None) and isinstance(getattr(duplicate_record, 'Tipo'), str):
+            setattr(target_record, 'Tipo', getattr(duplicate_record, 'Tipo'))
 
     except Exception as e:
         print(f"Erro ao mesclar dados do registro: {e}")
@@ -124,6 +181,7 @@ print("Sucesso! Começando unificação de registros...")
 try:
     df = pd.read_sql(session.query(Contatos).statement, session.bind)
     df['Nome'] = df['Nome'].str.upper()
+    df['Nome'] = df['Nome'].str.replace(' ', '', regex=False)
 
     duplicates = df[df.duplicated(subset=['Nome'], keep=False)]
 
@@ -141,7 +199,9 @@ for index, row in unified_df.iterrows():
 
     try:
 
-        duplicate_records = session.query(Contatos).filter(func.upper(Contatos.Nome) == nome.upper()).all()
+        duplicate_records = session.query(Contatos).filter(
+            func.upper(func.replace(Contatos.Nome,' ', '')) == nome.replace(' ', '').upper()
+        ).all()
     
     except Exception as e: 
         print(f"Erro ao buscar registros duplicados: {e}")
