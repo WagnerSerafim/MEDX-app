@@ -1,3 +1,4 @@
+from datetime import datetime
 import glob
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -27,7 +28,7 @@ Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-extension_file = glob.glob(f'{path_file}/pacientes*.xml')
+extension_file = glob.glob(f'{path_file}/paciente*.xml')
 
 dfs = []
 
@@ -75,13 +76,12 @@ for _, row in df.iterrows():
     else:
         name = row['nome']
 
-    date_str = row['data_nascimento'].replace("/", "-")
-    if is_valid_date(row["data_nascimento"], "%d-%m-%Y"):
-        birthday = row['data_nascimento']
+    if is_valid_date(row['data_nascimento'], "%d-%m-%Y"):
+        birthday = datetime.strptime(row['data_nascimento'].replace("/", "-"), "%d-%m-%Y")
     else:
         birthday = '01/01/1900'
 
-    if row['sexo'] == 2:
+    if row['sexo_id'] == 2:
         sex = 'F'
     else:
         sex = 'M'
