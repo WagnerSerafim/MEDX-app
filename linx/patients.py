@@ -1,4 +1,3 @@
-from datetime import datetime
 import glob
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -7,6 +6,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, truncate_value
+from datetime import datetime
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -28,10 +28,16 @@ Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-todos_arquivos = glob.glob(f'{path_file}/paciente.xml')
+extension_file = glob.glob(f'{path_file}/Pacientes.xlsx')
+cities_file = glob.glob(f'{path_file}/Cidades.xlsx')
+neighbourhoods_file = glob.glob(f'{path_file}/Bairros.xlsx')
 
-df = pd.read_xml(todos_arquivos[0])
-df = df.replace('None', '')
+df = pd.read_excel(extension_file[0])
+df_cities = pd.read_excel(cities_file[0])
+df_neighbourhoods = pd.read_excel(neighbourhoods_file[0])
+
+city_lookup = {row["CidadeID"]: row["NomeCidade"] for _, row in df_cities.iterrows()}
+neighbourhood_lookup = {row["BairroID"]: row["Nome"] for _, row in df_neighbourhoods.iterrows()}
 
 log_folder = path_file
 
@@ -45,59 +51,66 @@ not_inserted_cont = 0
 
 for _, row in df.iterrows():
 
-    existing_record = exists(session, row['id'], "Id do Cliente", Contatos)
-    if existing_record:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente já existe'
-        not_inserted_data.append(row_dict)
-        continue
-
-    if row["id"] == None or row["id"] == '' or row["id"] == 'None':
-        not_inserted_cont +=1
+    if row["PacienteID"] == None or row["PacienteID"] == '' or row["PacienteID"] == 'None':
+        not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente vazio'
         not_inserted_data.append(row_dict)
         continue
     else:
-        id_patient = row["id"]
+        id_patient = row["PacienteID"]
     
-    if row['nome'] == None or row['nome'] == '' or row['nome'] == 'None':
-        not_inserted_cont +=1
+    existing_record = exists(session, row['PacienteID'], "Id do Cliente", Contatos)
+    if existing_record:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Cliente já existe'
+        not_inserted_data.append(row_dict)
+        continue
+
+    
+    if row['Nome'] == None or row['Nome'] == '' or row['Nome'] == 'None':
+        not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Nome do Paciente vazio'
         not_inserted_data.append(row_dict)
         continue
     else:
-        name = row['nome']
+        name = row['Nome']
 
-    if is_valid_date(row['data_nascimento'], "%d-%m-%Y"):
-        birthday = datetime.strptime(row['data_nascimento'].replace("/", "-"), "%d-%m-%Y")
-    else:
+
+    try:
+        date_str = row['DataNascimento'][:10].strip()
+        date = datetime.strptime(date_str, '%m/%d/%Y')
+        date = date.strftime('%Y/%m/%d')
+        if is_valid_date(date, "%Y-%m-%d"):
+            birthday = date
+        else:
+            raise Exception
+    except Exception as e:
         birthday = '01/01/1900'
+        continue
 
-    if row['sexo_id'] == 2:
-        sex = 'F'
-    else:
-        sex = 'M'
+    sex = row['Sexo']
+
+    city = city_lookup.get(row["CidadeID"], None)
+    neighbourhood = neighbourhood_lookup.get(row["BairroID"], None)
+
+    email = row['Email']
+    cpf = row['CPF']
+    rg = row['RG']
+    telephone = row['Telefone']
+    cellphone = row['Celular']
+    cep = row['CEP']
+    complement = row['Complemento']
+    state = ''
+    occupation = row['Profissao']
+    mother = row['NomeMae']
+    father = row['NomePai']
+
+    observation = ''
     
-
-    email = row['email']
-    cpf = row['cpf']
-    rg = row['rg']
-    telephone = row['telefone_residencial']
-    cellphone = row['celular']
-    cep = None
-    complement = None
-    neighbourhood = None
-    city = None
-    state = None
-    occupation = row['profissao']
-    mother = None
-    father = None
-    observation = row['observacao']
-
-    address = None
+    address = f"{row['Endereco']} {row['NumeroEndereco']}"
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -128,7 +141,7 @@ for _, row in df.iterrows():
         "Nascimento": birthday,
         "Sexo": sex,
         "CPF/CGC": cpf,
-        "RG" : rg,
+        "RG": rg,
         "Profissão": occupation,
         "Pai": father,
         "Mãe": mother,
@@ -144,7 +157,7 @@ for _, row in df.iterrows():
 
     session.add(new_patient)
 
-    inserted_cont+=1
+    inserted_cont += 1
     if inserted_cont % 10000 == 0:
         session.commit()
 
@@ -156,5 +169,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_pacientes_faltantes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_pacientes_faltantes.xlsx")
+create_log(log_data, log_folder, "log_inserted_cadPaciente.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_cadPaciente.xlsx")
