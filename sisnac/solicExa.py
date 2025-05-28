@@ -16,9 +16,7 @@ def get_record(row):
     """
     try:
         record = ''
-        record += f"Laudo: {row['Descr']}<br><br>"
-        record += rtf_to_text(row['Laudo'])
-        record = record.replace('_x000D_', ' ')
+        record += f"Solicitação de Exame: {row['Descr']}"
     except:
         return ''
     
@@ -47,15 +45,15 @@ print("Sucesso! Inicializando migração de Históricos...")
 
 todos_arquivos = glob.glob(f'{path_file}/dados.xlsx')
 
-df = pd.read_excel(todos_arquivos[0], sheet_name='Laudo')
+df = pd.read_excel(todos_arquivos[0], sheet_name='SolicExa')
 df = df.replace('None', '')
 
-df_consult = pd.read_excel(todos_arquivos[0], sheet_name='Consulta')
-df_consult = df_consult.replace('None', '')
+# df_consult = pd.read_excel(todos_arquivos[0], sheet_name='Consulta')
+# df_consult = df_consult.replace('None', '')
 
-df_consult = df_consult.sort_values(by='Seq', ascending=True)
+# df_consult = df_consult.sort_values(by='Seq', ascending=True)
 
-last_id = df_consult['Seq'].iloc[-1]
+# last_id = df_consult['Seq'].iloc[-1]
 
 log_folder = path_file
 
@@ -66,11 +64,11 @@ log_data = []
 inserted_cont = 0
 not_inserted_data = []
 not_inserted_cont = 0
-id_count = 1
+id_record = 0
 
 for _, row in df.iterrows():
-    id_count += 1
-    id_record = int(id_count + last_id) 
+    id_record -= 1
+
     existing_record = exists(session, id_record, "Id do Histórico", HistoricoClientes)
     if existing_record:
         not_inserted_cont += 1
@@ -89,13 +87,14 @@ for _, row in df.iterrows():
 
     record = record.replace('_x000D_', ' ')
 
-    date_str = row['Data'].strftime('%Y-%m-%d %H:%M')
+    date_str = row['DataSist'].strftime('%Y-%m-%d %H:%M')
     if is_valid_date(date_str, '%Y-%m-%d %H:%M'):
         date = date_str
     else:
         date = '01/01/1900 00:00'
 
-    id_patient = row["CodPaciente"]
+    id_patient = str(row["CodPaciente"])
+    id_patient = id_patient[:-2]
     if id_patient == "" or id_patient == None or id_patient == 'None':
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -132,5 +131,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_laudo.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_laudo.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_solicExa.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_solicExa.xlsx")
