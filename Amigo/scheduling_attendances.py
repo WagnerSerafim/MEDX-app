@@ -1,3 +1,4 @@
+import glob
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -5,26 +6,12 @@ from sqlalchemy import create_engine
 from datetime import datetime, timedelta
 import pandas as pd
 import urllib
-
-def get_valid_date(date_str):
-    
-    if pd.isna(date_str) or date_str in ["", "0000-00-00"]:
-        return "01/01/1900"
-    
-    try:
-        date_obj = datetime.strptime(str(date_str), "%d-%m-%Y")
-        if 1900 <= date_obj.year <= 2100:
-            return date_obj.strftime("%d/%m/%Y")
-        else:
-            return "01/01/1900"
-    except ValueError:
-        return "01/01/1900"
-
+from utils.utils import is_valid_date, exists, create_log
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
-excel_file = input("Informe a pasta do arquivo attendances.xlsx: ").strip()   
+path_file = input("Informe o caminho da pasta que contém os arquivos: ") 
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
@@ -38,35 +25,78 @@ Base.prepare(autoload_with=engine)
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-Agenda = Base.classes.Agenda
+Agenda = getattr(Base.classes, "Agenda")
+Contatos = getattr(Base.classes, "Contatos")
 
-print("Sucesso! Começando migração de agendamentos...\n")
-                  
-log_folder = os.path.dirname(excel_file)
+print("Sucesso! Inicializando migração de Agendamentos...")
 
-df = pd.read_excel(excel_file)
-df = df.fillna(value="")
+todos_arquivos = glob.glob(f'{path_file}/attendances.xlsx')
+
+df = pd.read_excel(todos_arquivos[0])
+df = df.replace('None', '')
+
+log_folder = path_file
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
+inserted_cont=0
+not_inserted_data = []
+not_inserted_cont = 0
 
-for index, row in df.iterrows():
+for _, row in df.iterrows():
 
-    if row["id"] == "" or row['id']==None:
+    patient = exists(session, row["id"], "Id do Cliente", Contatos)
+    if not patient:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente vinculado não existe no banco de dados'
+        not_inserted_data.append(row_dict)
+        continue
+    else:
+        description = f"{patient.Nome}"
+        description += f" - {row['type']} {row["observation"]}"
+
+    exists_row = session.query(Agenda).filter(getattr(Agenda, 'Id do Agendamento') == row["id"]).first()
+    if exists_row:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id já existe no banco de dados'
+        not_inserted_data.append(row_dict)
+        continue
+    else:
+        id_scheduling = row["id"]
+    
+    if is_valid_date(row['start_date'], '%Y-%m-%d %H:%M:%S'):
+        if isinstance(row['start_date'],datetime):
+            start_time = row['start_date'].strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            start_time = row['start_date']
+    else:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Data ou Hora inválida'
+        not_inserted_data.append(row_dict)
         continue
 
-    if row["start_date"] == "" or row['start_date']==None:
+    if is_valid_date(row['end_date'], '%Y-%m-%d %H:%M:%S'):
+        if isinstance(row['end_date'],datetime):
+            end_time = row['end_date'].strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            end_time = row['end_date']
+    else:
+            start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+            end_dt = start_dt + timedelta(minutes=30)
+            end_time = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    id_patient = row["paciente_id"]
+    if id_patient == "" or id_patient == None or id_patient == 'None':
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente vazio'
+        not_inserted_data.append(row_dict)
         continue
-
-    if row['patient_id'] == "" or row['patient_id']==None:
-        continue
-
-    description = f"{row['type']} {row["observation"]}"
-
-    start_time = row['start_date']
-    end_time = row['end_date']
 
     user = row['user_id']
 
