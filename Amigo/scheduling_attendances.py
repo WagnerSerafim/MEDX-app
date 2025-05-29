@@ -123,12 +123,18 @@ for _, row in df.iterrows():
 
     session.add(new_schedulling)
 
+    inserted_cont+=1
+
+    if inserted_cont % 10000 == 0:
+        session.commit()
+
 session.commit()
 
-print(f"Novos agendamentos inseridos com sucesso!")
+print(f"{inserted_cont} novos agendamentos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} agendamentos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_scheduling_attendances.xlsx")
-log_df.to_excel(log_file_path, index=False)
+create_log(log_data, log_folder, "log_inserted_scheduling_agendamentos.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_scheduling_agendamentos.xlsx")
