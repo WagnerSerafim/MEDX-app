@@ -34,7 +34,7 @@ except Exception as e:
 
 print("Sucesso! Começando migração de pacientes...")
 
-excel_file = glob.glob(f'{path_file}/dados_pacientes.xlsx')
+excel_file = glob.glob(f'{path_file}/patients.xlsx')
 print(excel_file)
 df = pd.read_excel(excel_file[0])
 df = df.replace('None', '')
@@ -154,5 +154,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_patients_pacientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_patients_pacientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_patients.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_patients.xlsx")
