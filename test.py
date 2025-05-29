@@ -1,15 +1,15 @@
 import pandas as pd
-from datetime import datetime
+import csv
 
+csv.field_size_limit(2**31-1)
+chunk_size = 100000  # Number of rows per output file
 
-df = pd.read_excel(r"E:\Migracoes\Schema_35317_Linx\Extracao_74489_6909\Pacientes.xlsx")
+reader = pd.read_csv(
+    r"E:\Migracoes\Schema_12654\Exportação de dados\Exportação de dados\CSV\HISTORICOLAUDO_202504251317.csv",
+    sep=';', engine='python', chunksize=chunk_size
+)
 
-date_str = df['DataNascimento'][3][:10].strip()
-print(date_str)
-
-
-date = datetime.strptime(date_str, '%m/%d/%Y')
-date = date.strftime('%Y/%m/%d')
-
-print(date)
-print(len(df))
+for i, chunk in enumerate(reader):
+    out_path = f"E:/Migracoes/Schema_12654/Exportação de dados/Exportação de dados/CSV/HISTORICOLAUDO_202504251317_part{i+1}.csv"
+    chunk.to_csv(out_path, sep=';', index=False)
+    print(f"Saved {out_path}")

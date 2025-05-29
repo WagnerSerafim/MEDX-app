@@ -34,8 +34,7 @@ except Exception as e:
 
 print("Sucesso! Começando migração de pacientes...")
 
-excel_file = glob.glob(f'{path_file}/dados_pacientes.xlsx')
-print(excel_file)
+excel_file = glob.glob(f'{path_file}/patients.xlsx')
 df = pd.read_excel(excel_file[0])
 df = df.replace('None', '')
 
@@ -87,7 +86,7 @@ for _, row in df.iterrows():
     name = truncate_value(row["name"], 50)
     rg = truncate_value(row["rg"], 25)
     cpf = truncate_value(row["cpf"], 25)
-    cellphone = cellphone
+    cellphone = row['contact_cellphone']
     email = truncate_value(row["email"], 100)
     occupation = truncate_value(row["jobrole"], 25)
     cep = truncate_value(row["address_cep"], 10)
@@ -110,7 +109,7 @@ for _, row in df.iterrows():
     setattr(new_patient, "Id do Cliente", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
     setattr(new_patient, "Cep Residencial", truncate_value(cep, 10))
-    setattr(new_patient, "Endereço Residencial", address)
+    setattr(new_patient, "Endereço Residencial", truncate_value(address,50))
     setattr(new_patient, "Endereço Comercial", truncate_value(complement, 50))
     setattr(new_patient, "Bairro Residencial", truncate_value(neighbourhood, 25))
     setattr(new_patient, "Cidade Residencial", truncate_value(city, 25))
@@ -134,7 +133,7 @@ for _, row in df.iterrows():
         "Celular": cellphone,
         "Email": email,
         "Cep Residencial": cep,
-        "Endereço Residencial": address,
+        "Endereço Residencial": truncate_value(address,50),
         "Endereço Comercial": truncate_value(complement, 50),
         "Bairro Residencial": truncate_value(neighbourhood, 25),
         "Cidade Residencial": city,
@@ -154,5 +153,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_patients_pacientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_patients_pacientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_patients.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_patients.xlsx")
