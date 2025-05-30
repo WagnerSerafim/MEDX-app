@@ -28,9 +28,13 @@ HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 print("Sucesso! Inicializando migração de Históricos...")
 
 todos_arquivos = glob.glob(f'{path_file}/records_file.xlsx')
+record_path = glob.glob(f'{path_file}/records.xlsx')
 
 df = pd.read_excel(todos_arquivos[0])
 df = df.replace('None', '')
+
+df_records = pd.read_excel(record_path[0])
+df_records = df_records.replace('None', '')
 
 log_folder = path_file
 
@@ -41,6 +45,8 @@ log_data = []
 inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
+
+record_lookup = {row['id']: row['patient_id'] for _, row in df_records.iterrows()}
 
 for _, row in df.iterrows():
 
@@ -61,12 +67,15 @@ for _, row in df.iterrows():
         continue
 
     id_patient = row["patient_id"]
-    if id_patient == "" or id_patient == None or id_patient == 'None':
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do paciente vazio'
-        not_inserted_data.append(row_dict)
-        continue
+    if id_patient == "" or id_patient == None or id_patient == 'None' or pd.isna(id_patient):
+        if record_id in record_lookup:
+            id_patient = record_lookup[record_id]
+        else:
+            not_inserted_cont += 1
+            row_dict = row.to_dict()
+            row_dict['Motivo'] = 'Id do paciente vazio e não encontrado no arquivo records.xlsx'
+            not_inserted_data.append(row_dict)
+            continue
     
     record = row['name']
     if record == "":
@@ -104,8 +113,8 @@ for _, row in df.iterrows():
             date = '01/01/1900 00:00'
 
     new_record = HistoricoClientes(
-        Histórico=record,
-        Data=date,
+        Histórico = record,
+        Data = date,
         Classe = classe_url
     )
 
@@ -114,8 +123,8 @@ for _, row in df.iterrows():
     setattr(new_record, "Id do Usuário", 0)
 
     log_data.append({
-        "Id do Histórico": row['id'],
-        "Id do Cliente": row["patient_id"],
+        "Id do Histórico": record_id,
+        "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
         "Classe": classe_url,
