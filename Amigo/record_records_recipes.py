@@ -6,62 +6,8 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-
-def is_valid_date(date_str, date_format):
-    if date_str in ["", None]:
-        return False
-    try:
-        if "/" in date_str:
-            date_str = date_str.replace("/", "-")
-        
-        date_obj = datetime.strptime(str(date_str), date_format)
-        
-        if date_format in ["%d-%m-%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"]:
-            if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31) and \
-               (0 <= date_obj.hour <= 23) and (0 <= date_obj.minute <= 59) and (0 <= date_obj.second <= 59):
-                return True
-        elif date_format in ["%d-%m-%Y %H:%M", "%Y-%m-%d %H:%M"]:
-            if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31) and \
-               (0 <= date_obj.hour <= 23) and (0 <= date_obj.minute <= 59):
-                return True
-        else:
-            if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31):
-                return True
-    except ValueError:
-        return False
-
-def get_info(json_str, record):
-    # Verifica se json_str é uma string e tenta carregá-la como um JSON
-    if isinstance(json_str, str):
-        try:
-            json_str = json.loads(json_str)  # Convertendo a string JSON para um dicionário
-        except json.JSONDecodeError:
-            # Se não for um JSON válido, podemos retornar um erro ou simplesmente não adicionar nada
-            record += "Erro ao processar JSON.<br>"
-            return record
-
-    # Agora, json_str é um dicionário, e você pode acessá-lo normalmente
-    if json_str.get("surgery_request_observation"):
-        record += f"Informações Extras:<br>Motivo Cirurgia: {json_str['surgery_request_observation']}<br>"
-        record += f"CID: {json_str.get('cid1', 'Não disponível')}<br><br>"
-        for exam in json_str.get('exams', []):
-            record += f"Nome da Cirurgia solicitada: {exam.get('name', 'Nome não informado')}"
-            record += f"Quantidade solicitada: {exam.get('amount', 'Quantidade não informada')}"
-    else:
-        if json_str.get("exams"):
-            record += f"Informações Extras:<br>"
-            if json_str.get('clinical_indication'):  # Usando .get() para evitar o erro KeyError
-                record += f"Indicação Clínica: {json_str['clinical_indication']}<br><br>"
-                for exam in json_str['exams']:
-                    record += f"Nome do Exame solicitado: {exam.get('name', 'Nome não informado')}"
-                    record += f"Quantidade solicitada: {exam.get('amount', 'Quantidade não informada')}"
-        
-        if json_str.get("telemedicine_consent_term"):
-            record += f"Informações Extras:<br>Termo de Consentimento Telemedicina: {json_str['telemedicine_consent_term']}"
-
-    return record
-
-
+from utils.utils import create_log, is_valid_date, exists
+import glob
 
 def get_record(row):
     record = ""
@@ -92,11 +38,10 @@ def get_record(row):
     
     return record
 
-
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
-excel_file = input("Informe o caminho do arquivo records_recipes.xlsx: ")
+path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
@@ -110,71 +55,107 @@ session = SessionLocal()
 
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
+print("Sucesso! Inicializando migração de Históricos...")
 
-log_folder = os.path.dirname(excel_file)
-record_file = os.path.dirname(excel_file)
-record_file = os.path.join(record_file, "records.xlsx")
+todos_arquivos = glob.glob(f'{path_file}/records_recipes.xlsx')
+record_path = glob.glob(f'{path_file}/records.xlsx')
 
-df = pd.read_excel(excel_file)
-df_record = pd.read_excel(record_file)
-df = df.fillna(value="")
+df = pd.read_excel(todos_arquivos[0])
+df = df.replace('None', '')
+
+df_records = pd.read_excel(record_path[0])
+df_records = df_records.replace('None', '')
+
+log_folder = path_file
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-repeated_ids_count = 0
-total_patients = len(df)
+inserted_cont=0
+not_inserted_data = []
+not_inserted_cont = 0
 
-merged_df = pd.merge(df, df_record, left_on='record_id', right_on='id', how='left', suffixes=('_extra', '_record'))
-print(merged_df.columns)
+record_lookup = {row['id']: row['patient_id'] for _, row in df_records.iterrows()}
 
-for index, row in merged_df.iterrows():
-    id_paciente = row['id_paciente']
+for _, row in df.iterrows():
 
-    existing_register = session.query(HistoricoClientes).filter(getattr(HistoricoClientes, "Id do Histórico") == row["id_extra"]).first()
-
-    if existing_register:
-        repeated_ids_count += 1
+    record_id = row['id']
+    if record_id is None or record_id == "":
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Histórico é vazio ou nulo'
+        not_inserted_data.append(row_dict)
         continue
+
+    existing_record = exists(session, record_id, "Id do Histórico", HistoricoClientes)
+    if existing_record:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Histórico já existe no banco de dados'
+        not_inserted_data.append(row_dict)
+        continue
+
+    id_patient = row["patient_id"]
+    if id_patient == "" or id_patient == None or id_patient == 'None' or pd.isna(id_patient):
+        if record_id in record_lookup:
+            id_patient = record_lookup[record_id]
+        else:
+            not_inserted_cont += 1
+            row_dict = row.to_dict()
+            row_dict['Motivo'] = 'Id do paciente vazio e não encontrado no arquivo records.xlsx'
+            not_inserted_data.append(row_dict)
+            continue
     
     record = get_record(row)
     if record == "":
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Histórico vazio'
+        not_inserted_data.append(row_dict)
         continue
 
-    date = ""
-    try:
-        date_str = row['created_at_extra'].strftime("%Y-%m-%d %H:%M")
-        if is_valid_date(date_str[:16], "%Y-%m-%d %H:%M"):
-            date = f"{date_str[:16]}"
-    except Exception as e:
-        print(f"Erro ao processar a data {row['created_at_extra']}: {e}")
-        date = datetime.strptime("01/01/1900 00:00", "%d/%m/%Y %H:%M")
+    if isinstance(row['created_at'], datetime):
+        date_str = row['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+        if is_valid_date(date_str, '%Y-%m-%d %H:%M:%S'):
+            date = date_str
+        else:
+            date = '01/01/1900 00:00'
+    else:
+        if is_valid_date(row['created_at'], '%d-%m-%Y %H:%M:%S'):
+            date = row['created_at']
+        else:
+            date = '01/01/1900 00:00'
 
     new_record = HistoricoClientes(
-        Histórico=record,
-        Data=date,
+        Histórico = record,
+        Data = date
     )
 
-    setattr(new_record, "Id do Histórico", row['id_extra'])
-    setattr(new_record, "Id do Cliente", id_paciente)
+    setattr(new_record, "Id do Histórico", record_id)
+    setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
 
     log_data.append({
-        "Id do Histórico": row['id_extra'],
-        "Id do Cliente": id_paciente,
+        "Id do Histórico": record_id,
+        "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
         "Id do Usuário": 0,
     })
-    
     session.add(new_record)
+    inserted_cont+=1
+
+    if inserted_cont % 100 == 0:
+        session.commit()
 
 session.commit()
 
-print(f"Novos Históricos inseridos com sucesso! {repeated_ids_count} registros já existentes!")
+print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")
+
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_record_recipes.xlsx")
-log_df.to_excel(log_file_path, index=False)
+create_log(log_data, log_folder, "log_inserted_records_recipes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_records_recipes.xlsx")
