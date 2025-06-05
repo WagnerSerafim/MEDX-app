@@ -1,6 +1,6 @@
 from datetime import datetime
 import os
-
+import re
 import pandas as pd
 
 def exists(session, id, id_table, table):
@@ -77,4 +77,10 @@ def clean_value(value):
         pass
     if str(value).lower() == 'nan':
         return None
+    return value
+
+def clean_caracters(value):
+    if isinstance(value, str):
+        # Remove caracteres de controle ilegais no Excel (exceto \t, \n)
+        return re.sub(r"[\x00-\x08\x0B-\x0C\x0E-\x1F]", "", value)
     return value

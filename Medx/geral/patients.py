@@ -4,7 +4,7 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, select
 import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value
+from utils.utils import exists, create_log, clean_caracters, truncate_value
 
 def log_denied(patient, motivo):
     row_dict = {col.name: getattr(patient, col.name) for col in ContatosSrc.__table__.columns}
@@ -85,15 +85,47 @@ while True:
                 log_denied(patient, "Id do Cliente já existe no banco de destino")
                 continue
 
-            row_dict = {
-            col.name: getattr(patient, col.name) for col in ContatosSrc.__table__.columns
-            }
+            valid_data.append({
+                "Nome": patient.Nome,
+                "Nascimento": patient.Nascimento,
+                "Sexo": patient.Sexo,
+                "Celular": patient.Celular,
+                "Email": patient.Email,
+                "Id do Cliente": id_patient,
+                "CPF/CGC": getattr(patient, "CPF/CGC", ''),
+                "Cep Residencial": getattr(patient, "Cep Residencial", ''),
+                "Endereço Residencial": getattr(patient, "Endereço Residencial", ''),
+                "Endereço Comercial": getattr(patient, "Endereço Comercial", ''),
+                "Bairro Residencial": getattr(patient, "Bairro Residencial", ''),
+                "Cidade Residencial": getattr(patient, "Cidade Residencial", ''),
+                "Estado Residencial": getattr(patient, "Estado Residencial", ''),
+                "Telefone Residencial": getattr(patient, "Telefone Residencial", ''),
+                "Profissão": getattr(patient, "Profissão", ''),
+                "Pai": getattr(patient, "Pai", ''),
+                "Mãe": getattr(patient, "Mãe", ''),
+                "RG": getattr(patient, "RG", '')
+            })
 
-            valid_data.append(row_dict)
-
-            row_log = row_dict
-            row_log['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            log_inserted.append(row_log)
+            log_inserted.append({
+                "Nome": patient.Nome,
+                "Nascimento": patient.Nascimento,
+                "Sexo": patient.Sexo,
+                "Celular": patient.Celular,
+                "Email": patient.Email,
+                "Id do Cliente": id_patient,
+                "CPF/CGC": getattr(patient, "CPF/CGC", ''),
+                "Cep Residencial": getattr(patient, "Cep Residencial", ''),
+                "Endereço Residencial": getattr(patient, "Endereço Residencial", ''),
+                "Endereço Comercial": getattr(patient, "Endereço Comercial", ''),
+                "Bairro Residencial": getattr(patient, "Bairro Residencial", ''),
+                "Cidade Residencial": getattr(patient, "Cidade Residencial", ''),
+                "Estado Residencial": getattr(patient, "Estado Residencial", ''),
+                "Telefone Residencial": getattr(patient, "Telefone Residencial", ''),
+                "Profissão": getattr(patient, "Profissão", ''),
+                "Pai": getattr(patient, "Pai", ''),
+                "Mãe": getattr(patient, "Mãe", ''),
+                "RG": getattr(patient, "RG", '')
+            })
 
         except Exception as e:
             log_denied(patient, f"Erro inesperado: {str(e)}")
