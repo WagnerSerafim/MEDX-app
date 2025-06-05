@@ -84,8 +84,8 @@ while True:
             if exists(session_dest, id_patient, "Id do Cliente", ContatosDest):
                 log_denied(patient, "Id do Cliente já existe no banco de destino")
                 continue
-
-            valid_data.append({
+            
+            patient_data = {
                 "Nome": patient.Nome,
                 "Nascimento": patient.Nascimento,
                 "Sexo": patient.Sexo,
@@ -100,32 +100,53 @@ while True:
                 "Cidade Residencial": getattr(patient, "Cidade Residencial", ''),
                 "Estado Residencial": getattr(patient, "Estado Residencial", ''),
                 "Telefone Residencial": getattr(patient, "Telefone Residencial", ''),
+                "Telefone Residencial 1": getattr(patient, "Telefone Residencial 1", ''),
+                "Telefone Comercial": getattr(patient, "Telefone Comercial", ''),
                 "Profissão": getattr(patient, "Profissão", ''),
                 "Pai": getattr(patient, "Pai", ''),
                 "Mãe": getattr(patient, "Mãe", ''),
-                "RG": getattr(patient, "RG", '')
-            })
+                "RG": getattr(patient, "RG", ''),
+                "Cidade Comercial": getattr(patient, "Cidade Comercial", ''),
+                "Estado Comercial": getattr(patient, "Estado Comercial", ''),
+                "Cep Comercial": getattr(patient, "Cep Comercial", ''),
+                "País Residencial": getattr(patient, "País Residencial", ''),
+                "País Comercial": getattr(patient, "País Comercial", ''),
+                "Estado Civil": getattr(patient, "Estado Civil", ''),
+                "Observações": getattr(patient, "Observações", ''),
+                "Bairro Comercial": getattr(patient, "Bairro Comercial", ''),
+                "PáginaWeb": getattr(patient, "Página Web", ''),
+                "Referências": getattr(patient, "Referências", ''),
+                "Filhos": getattr(patient, "Filhos", ''),
+                "Empresa": getattr(patient, "Empresa", ''),
+                "Tipo" : getattr(patient, "Tipo", ''),
+                "Mala Direta": getattr(patient, "Mala Direta", ''),
+                "Id do Convênio": getattr(patient, "Id do Convênio", ''),
+                "VIP": getattr(patient, "VIP", ''),
+                "Número da Matrícula": getattr(patient, "Número da Matrícula", ''),
+                "Histórico Familiar IAM AVC antes 50 anos": getattr(patient, "Histórico Familiar IAM AVC antes 50 anos", ''),
+                "Região": getattr(patient, "Região", ''),
+                "Escolaridade": getattr(patient, "Escolaridade", ''),
+                "Religião": getattr(patient, "Religião", ''),
+                "Co-Morbidade": getattr(patient, "Co-Morbidade", ''),
+                "Fadiga": getattr(patient, "Fadiga", ''),
+                "Fumante": getattr(patient, "Fumante", ''),
+                "LastEditDate": getattr(patient, "LastEditDate", None),
+                "CreationDate": getattr(patient, "CreationDate", None),
+                "Cônjuge": getattr(patient, "Cônjuge", ''),
+                "Acompanhante": getattr(patient, "Acompanhante", ''),
+                "Contato" : getattr(patient, "Contato", ''),
+                "Exclui_Mkt": getattr(patient, "Exclui_Mkt", ''),
+                "Tags" : getattr(patient, "Tags", ''),
+                "NumeroCNS": getattr(patient, "NumeroCNS", ''),
+                "Nome Social": getattr(patient, "Nome Social", ''),
+                "FaceDescriptor": getattr(patient, "FaceDescriptor", ''),
+                "Como Conheceu": getattr(patient, "Como Conheceu", ''),
+                "Indicado por": getattr(patient, "Indicado por", ''),
+            }
 
-            log_inserted.append({
-                "Nome": patient.Nome,
-                "Nascimento": patient.Nascimento,
-                "Sexo": patient.Sexo,
-                "Celular": patient.Celular,
-                "Email": patient.Email,
-                "Id do Cliente": id_patient,
-                "CPF/CGC": getattr(patient, "CPF/CGC", ''),
-                "Cep Residencial": getattr(patient, "Cep Residencial", ''),
-                "Endereço Residencial": getattr(patient, "Endereço Residencial", ''),
-                "Endereço Comercial": getattr(patient, "Endereço Comercial", ''),
-                "Bairro Residencial": getattr(patient, "Bairro Residencial", ''),
-                "Cidade Residencial": getattr(patient, "Cidade Residencial", ''),
-                "Estado Residencial": getattr(patient, "Estado Residencial", ''),
-                "Telefone Residencial": getattr(patient, "Telefone Residencial", ''),
-                "Profissão": getattr(patient, "Profissão", ''),
-                "Pai": getattr(patient, "Pai", ''),
-                "Mãe": getattr(patient, "Mãe", ''),
-                "RG": getattr(patient, "RG", '')
-            })
+            valid_data.append(patient_data)
+
+            log_inserted.append(patient_data)
 
         except Exception as e:
             log_denied(patient, f"Erro inesperado: {str(e)}")
