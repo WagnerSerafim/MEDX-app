@@ -35,7 +35,7 @@ def get_info(json_str, record):
         
         if json_str.get("telemedicine_consent_term"):
             record += f"Informações Extras:<br>Termo de Consentimento Telemedicina: {json_str['telemedicine_consent_term']}"
-        
+
         if json_str.get("133899"):
             record += f"Informações Extras:{json_str['133899']}<br>"
             if json_str.get("133900"):
@@ -108,45 +108,45 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont=0
-not_inserted_data = []
-not_inserted_cont = 0
+updated_cont = 0
+not_updated_data = []
+not_updated_cont = 0
 
 for _, row in df.iterrows():
 
     record_id = row['id']
     if record_id is None or record_id == "":
-        not_inserted_cont += 1
+        not_updated_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Histórico é vazio ou nulo'
-        not_inserted_data.append(row_dict)
+        not_updated_data.append(row_dict)
         continue
 
     existing_record = exists(session, record_id, "Id do Histórico", HistoricoClientes)
-    if existing_record:
-        not_inserted_cont += 1
+    if not existing_record:
+        not_updated_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Histórico já existe no banco de dados'
-        not_inserted_data.append(row_dict)
+        row_dict['Motivo'] = 'Histórico não encontrado no banco de dados'
+        not_updated_data.append(row_dict)
         continue
 
     id_patient = row["patient_id"]
     if id_patient == "" or id_patient == None or id_patient == 'None':
-        not_inserted_cont += 1
+        not_updated_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do paciente vazio'
-        not_inserted_data.append(row_dict)
+        not_updated_data.append(row_dict)
         continue
     
     record, message = get_record(row)
     if record in [None, '', 'None'] or message == "Erro ao processar JSON.": 
-        not_inserted_cont += 1
+        not_updated_cont += 1
         row_dict = row.to_dict()
         if message:
             row_dict['Motivo'] = message
         else:
             row_dict['Motivo'] = 'Histórico vazio'
-        not_inserted_data.append(row_dict)
+        not_updated_data.append(row_dict)
         continue
     
     if isinstance(row['created_at'], datetime):
@@ -161,35 +161,31 @@ for _, row in df.iterrows():
         else:
             date = '01/01/1900 00:00'
 
-    new_record = HistoricoClientes(
-        Histórico=record,
-        Data=date,
-    )
+    record_to_update = session.query(HistoricoClientes).filter(HistoricoClientes.__table__.c['Id do Histórico'] == record_id).first()
+    if record_to_update:
+        record_to_update.Histórico = record
 
-    setattr(new_record, "Id do Histórico", record_id)
-    setattr(new_record, "Id do Cliente", id_patient)
-    setattr(new_record, "Id do Usuário", 0)
+        log_data.append({
+            "Id do Histórico": record_id,
+            "Id do Cliente": id_patient,
+            "Data": date,
+            "Histórico": record,
+            "Id do Usuário": 0,
+            "TimeStamp": datetime.now().strftime('%d-%m-%Y %H:%M:%S'),
+        })
 
-    log_data.append({
-        "Id do Histórico": record_id,
-        "Id do Cliente": id_patient,
-        "Data": date,
-        "Histórico": record,
-        "Id do Usuário": 0,
-    })
-    session.add(new_record)
-    inserted_cont+=1
+        updated_cont += 1
 
-    if inserted_cont % 100 == 0:
+    if updated_cont % 100 == 0:
         session.commit()
 
 session.commit()
 
-print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
-if not_inserted_cont > 0:
-    print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")
+print(f"{updated_cont} históricos foram atualizados com sucesso!")
+if not_updated_cont > 0:
+    print(f"{not_updated_cont} históricos não foram atualizados, verifique o log para mais detalhes.")
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_records.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_records.xlsx")
+create_log(log_data, log_folder, "log_updated_records.xlsx")
+create_log(not_updated_data, log_folder, "log_not_updated_records.xlsx")

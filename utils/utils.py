@@ -57,3 +57,24 @@ def create_log(log_data, log_folder, log_name):
     log_df = pd.DataFrame(log_data)
     log_path = os.path.join(log_folder, log_name)
     log_df.to_excel(log_path, index=False)
+
+def verify_column_exists(column_name, df, row):
+        """ Verifica se a coluna existe no DataFrame"""
+        if column_name in df.columns:
+            generic_var = row[column_name]
+            return generic_var
+        else:
+            return ''
+
+def clean_value(value):
+    # Converte 'nan', '', None, numpy.nan para None
+    if value in [None, '', 'None']:
+        return None
+    try:
+        if isinstance(value, float) and math.isnan(value):
+            return None
+    except:
+        pass
+    if str(value).lower() == 'nan':
+        return None
+    return value

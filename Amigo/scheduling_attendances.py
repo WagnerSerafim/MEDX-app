@@ -15,7 +15,7 @@ path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
-print("Conectando no Banco de dados...\n")
+print("Conectando no Banco de dados...")
 
 engine = create_engine(DATABASE_URL)
 
@@ -125,7 +125,7 @@ for _, row in df.iterrows():
 
     inserted_cont+=1
 
-    if inserted_cont % 10000 == 0:
+    if inserted_cont % 100 == 0:
         session.commit()
 
 session.commit()

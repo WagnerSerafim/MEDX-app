@@ -67,10 +67,17 @@ for _, row in df.iterrows():
     else: 
         id_patient = row["id"]
 
-    if not is_valid_date(row["born"], '%Y-%m-%d'):
-        birthday = "01/01/1900"
+    if isinstance(row['born'], datetime):
+        date_str = row['born'].strftime('%Y-%m-%d')
+        if is_valid_date(date_str, '%Y-%m-%d'):
+            birthday = date_str
+        else:
+            birthday = '01/01/1900'
     else:
-        birthday = row['born']
+        if is_valid_date(row['born'], '%Y-%m-%d'):
+            birthday = row['born']
+        else:
+            birthday = '01/01/1900'
 
     if row['gender'] == "Feminino":
         sex = 'F'
@@ -142,7 +149,7 @@ for _, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 10000 == 0:
+    if inserted_cont % 100 == 0:
         session.commit()
 
 session.commit()

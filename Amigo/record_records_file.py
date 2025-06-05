@@ -68,8 +68,8 @@ for _, row in df.iterrows():
 
     id_patient = row["patient_id"]
     if id_patient == "" or id_patient == None or id_patient == 'None' or pd.isna(id_patient):
-        if record_id in record_lookup:
-            id_patient = record_lookup[record_id]
+        if row['record_id'] in record_lookup:
+            id_patient = record_lookup[row['record_id']]
         else:
             not_inserted_cont += 1
             row_dict = row.to_dict()

@@ -144,7 +144,7 @@ for _, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 10000 == 0:
+    if inserted_cont % 100 == 0:
         session.commit()
 
 session.commit()

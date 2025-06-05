@@ -1,4 +1,3 @@
-import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -18,8 +17,8 @@ def get_record(row):
             (row["posologia"] == "" or row["posologia"] is None) and
             (row["observation"] == "" or row["observation"] is None)):
          
-        if not (row["type_extra"] == "" or row["type_extra"] is None):
-            record += f"Tipo do histórico: {row['type_extra']}<br>"
+        if not (row["type"] == "" or row["type"] is None):
+            record += f"Tipo do histórico: {row['type']}<br>"
 
         if not (row["name"] == "" or row["name"] is None):
             record += f"Nome: {row['name']}<br><br>"
@@ -96,7 +95,7 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = row["patient_id"]
+    id_patient = record_lookup.get(row['record_id'], "")
     if id_patient == "" or id_patient == None or id_patient == 'None' or pd.isna(id_patient):
         if record_id in record_lookup:
             id_patient = record_lookup[record_id]
