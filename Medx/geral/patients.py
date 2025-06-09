@@ -85,15 +85,21 @@ while True:
                 log_denied(patient, "Id do Cliente já existe no banco de destino")
                 continue
             
+            email = getattr(patient, "Email", None)
+            email = clean_caracters(email)
+
+            observations = getattr(patient, "Observações", '')
+            observations = clean_caracters(observations)
+
             patient_data = {
                 "Nome": patient.Nome,
                 "Nascimento": patient.Nascimento,
                 "Sexo": patient.Sexo,
                 "Celular": patient.Celular,
-                "Email": patient.Email,
+                "Email": email,
                 "Id do Cliente": id_patient,
-                "CPF/CGC": getattr(patient, "CPF/CGC", ''),
-                "Cep Residencial": getattr(patient, "Cep Residencial", ''),
+                "CPF/CGC": str(getattr(patient, "CPF/CGC", '')),
+                "Cep Residencial": str(getattr(patient, "Cep Residencial", '')),
                 "Endereço Residencial": getattr(patient, "Endereço Residencial", ''),
                 "Endereço Comercial": getattr(patient, "Endereço Comercial", ''),
                 "Bairro Residencial": getattr(patient, "Bairro Residencial", ''),
@@ -112,7 +118,7 @@ while True:
                 "País Residencial": getattr(patient, "País Residencial", ''),
                 "País Comercial": getattr(patient, "País Comercial", ''),
                 "Estado Civil": getattr(patient, "Estado Civil", ''),
-                "Observações": getattr(patient, "Observações", ''),
+                "Observações": observations,
                 "Bairro Comercial": getattr(patient, "Bairro Comercial", ''),
                 "PáginaWeb": getattr(patient, "Página Web", ''),
                 "Referências": getattr(patient, "Referências", ''),
