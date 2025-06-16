@@ -81,22 +81,23 @@ for _, row in df.iterrows():
 
     if 'NASCIMENTO' in df.columns:
         if isinstance(row['NASCIMENTO'], datetime):
-            date_str = row['NASCIMENTO'].strftime('%Y-%m-%d')
-            if is_valid_date(date_str, '%Y-%m-%d'):
-                birthday = date_str
-            else:
-                birthday = '01/01/1900'
+            birthday = row['NASCIMENTO'].strftime('%Y-%m-%d')
         else:
-            if is_valid_date(row['NASCIMENTO'], '%Y-%m-%d'):
-                birthday = row['NASCIMENTO']
-            else:
-                birthday = '01/01/1900'
+            # tenta converter string para datetime
+            try:
+                birthday_dt = pd.to_datetime(row['NASCIMENTO'], dayfirst=True, errors='coerce')
+                if pd.isna(birthday_dt):
+                    birthday = '1900-01-01'
+                else:
+                    birthday = birthday_dt.strftime('%Y-%m-%d')
+            except Exception:
+                birthday = '1900-01-01'
     else:
-        birthday = '01/01/1900'
+        birthday = '1900-01-01'
 
     if 'SEXO' in df.columns:
-        if row['SEXO'] == "Feminino":
-            sex = 'F'
+        if row['SEXO'] == "F":
+            sex = "F"
         else:
             sex = "M"
     else:
@@ -145,7 +146,9 @@ for _, row in df.iterrows():
 
     mother = truncate_value(clean_value(verify_column_exists("MÃE", df, row)), 50)
 
-    telephone = truncate_value(clean_value(verify_column_exists("TELEFONE", df, row)), 25)
+    home_phone = truncate_value(clean_value(verify_column_exists("TELEFONE", df, row)), 25)
+
+    insurance = clean_value(verify_column_exists("CONVENIO", df, row))
 
     observation = clean_value(verify_column_exists("OBSERVAÇÕES", df, row))
     address = truncate_value(clean_value(address), 50)
@@ -165,7 +168,7 @@ for _, row in df.iterrows():
     setattr(new_patient, "Endereço Comercial", complement)
     setattr(new_patient, "Bairro Residencial", neighbourhood)
     setattr(new_patient, "Cidade Residencial", city)
-    setattr(new_patient, "Telefone Residencial", telephone)
+    setattr(new_patient, "Telefone Residencial", home_phone)
     setattr(new_patient, "Profissão", occupation)
     setattr(new_patient, "Pai", father)
     setattr(new_patient, "Mãe", mother)
@@ -182,7 +185,7 @@ for _, row in df.iterrows():
         "Profissão": occupation,
         "Pai": father,
         "Mãe": mother,
-        "Telefone Residencial": telephone,
+        "Telefone Residencial": home_phone,
         "Celular": cellphone,
         "Email": email,
         "Cep Residencial": cep,

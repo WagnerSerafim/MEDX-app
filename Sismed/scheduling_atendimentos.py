@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -6,6 +7,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
+from utils.utils import exists, create_log
 
 def get_valid_date(json_dict):
     
@@ -22,11 +24,12 @@ def get_valid_date(json_dict):
         return "01/01/1900"
 
 
-log_data = []
-
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
+path_file = input("Informe o caminho da pasta: ")                   
+
+print("Conectando no Banco de Dados...")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
@@ -38,64 +41,102 @@ Base.prepare(autoload_with=engine)
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-Agenda = Base.classes.Agenda
+Agenda = getattr(Base.classes, "Agenda")
 
-json_file = input("Informe a pasta do arquivo JSON: ").strip()                     
-log_folder = os.path.dirname(json_file)
-patients = f"{os.path.dirname(json_file)}/pac_fun_for.json"
+print("Sucesso! Inicializando migração...")
 
-with open(json_file, 'r', encoding='utf-8') as file:
+json_file = glob.glob(f'{path_file}/atendimentos.json')
+patients = glob.glob(f'{path_file}/pac_fun_for.json')
+
+with open(json_file[0], 'r', encoding='utf-8') as file:
     json_data = json.load(file)
+                     
+log_folder = path_file
 
-with open(patients, 'r', encoding='utf-8') as file:
+if not os.path.exists(log_folder):
+    os.makedirs(log_folder)
+
+log_data = []
+inserted_cont = 0
+not_inserted_data = []
+not_inserted_cont = 0
+
+with open(patients[0], 'r', encoding='utf-8') as file:
     patients_data = json.load(file)
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
+patients_lookup = {patient["PACIENcodigo"]: patient for patient in patients_data}
+
 for dict in json_data:
 
+    existing_scheduling = exists(session, dict["ATENDIcodigo"], "Id do Agendamento", Agenda)
+    if existing_scheduling:
+        not_inserted_cont += 1
+        dict["Motivo"] = "Id do Agendamento já existe"
+        not_inserted_data.append(dict)
+        continue
+
     if pd.isna(dict["ATENDIcodigo"]) or dict["ATENDIcodigo"] == "":
+        not_inserted_cont += 1
+        dict["Motivo"] = "Id do Agendamento é vazio ou nulo"
+        not_inserted_data.append(dict)
         continue
 
-    elif pd.isna(dict["ATENDIdataentrada"]) or dict["ATENDIdataentrada"] == "":
+    if pd.isna(dict["ATENDIdataentrada"]) or dict["ATENDIdataentrada"] == "":
+        not_inserted_cont += 1
+        dict["Motivo"] = "Data de entrada é vazia ou nula"
+        not_inserted_data.append(dict)
         continue
 
-    elif pd.isna(dict["ATENDIhoraentrada"]) or dict["ATENDIhoraentrada"] == "":
+    if pd.isna(dict["ATENDIhoraentrada"]) or dict["ATENDIhoraentrada"] == "":
+        not_inserted_cont += 1
+        dict["Motivo"] = "Hora de entrada é vazia ou nula"
+        not_inserted_data.append(dict)
         continue
 
-    elif pd.isna(dict["MEDICOcodigo"]) or dict["MEDICOcodigo"] == "":
+    if pd.isna(dict["MEDICOcodigo"]) or dict["MEDICOcodigo"] == "":
+        not_inserted_cont += 1
+        dict["Motivo"] = "Id do Médico é vazio ou nulo"
+        not_inserted_data.append(dict)
+        continue
+
+    if pd.isna(dict["PACIENcodigo"]) or dict["PACIENcodigo"] == "":
+        not_inserted_cont += 1
+        dict["Motivo"] = "Id do Paciente é vazio ou nulo"
+        not_inserted_data.append(dict)
         continue
     
-    name = ""
-    for patient in patients_data:
-        if dict["PACIENcodigo"] == patient["PACIENcodigo"]:
-            name = patient["PACIENnome"]
-            break
+    paciente = patients_lookup.get(dict["PACIENcodigo"])
+    name = paciente["PACIENnome"] if paciente else ""
 
-    description = f"{name} {dict["ATENDIobservacao"]}"
-    if description == "":
+    description = f"{name} {dict.get('ATENDIobservacao', '')}".strip()
+    if not description:
         description = "Agendamento sem descrição no backup"
     
     start_date = get_valid_date(dict["ATENDIdataentrada"])
     end_date = get_valid_date(dict["ATENDIdatasaida"])
 
-    start_time = f"{start_date} {dict["ATENDIhoraentrada"]}"
-    start_time = datetime.strptime(start_time, "%Y/%m/%d %H:%M")
+    try:
+        start_time = datetime.strptime(f"{start_date} {dict['ATENDIhoraentrada']}", "%Y/%m/%d %H:%M")
+        end_time = datetime.strptime(f"{end_date} {dict['ATENDIhorasaida']}", "%Y/%m/%d %H:%M")
+    except Exception as e:
+        not_inserted_cont += 1
+        dict['Motivo'] = f'Data ou hora inválida: {e}'
+        not_inserted_data.append(dict)
+        continue
 
-    end_time = f"{end_date} {dict["ATENDIhorasaida"]}"
-    end_time = datetime.strptime(end_time, "%Y/%m/%d %H:%M")
-
-    new_schedulling = Agenda(
+    new_scheduling = Agenda(
         Descrição=description,
         Início=start_time,
         Final=end_time,
         Status=1,
     )
 
-    setattr(new_schedulling, "Id do Agendamento", dict["ATENDIcodigo"])
-    setattr(new_schedulling, "Vinculado a", dict["PACIENcodigo"])
-    setattr(new_schedulling, "Id do Usuário", dict["MEDICOcodigo"])
+    setattr(new_scheduling, "Id do Agendamento", dict["ATENDIcodigo"])
+    setattr(new_scheduling, "Vinculado a", dict["PACIENcodigo"])
+    setattr(new_scheduling, "Id do Usuário", dict["MEDICOcodigo"])
     
     log_data.append({
         "Id do Agendamento": dict["ATENDIcodigo"],
@@ -107,14 +148,18 @@ for dict in json_data:
         "Status" : 1
     })
 
-    session.add(new_schedulling)
+    session.add(new_scheduling)
+    inserted_cont+=1
+    if inserted_cont % 100 == 0:
+        session.commit()
 
 session.commit()
 
-print("Novos agendamentos inseridos com sucesso!")
+print(f"{inserted_cont} novos agendamentos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} agendamentos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "log_schedulling_atendimentos.xlsx")
-log_df.to_excel(log_file_path, index=False)
+create_log(log_data, log_folder, "log_inserted_scheduling_atendimentos.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_scheduling_atendimentos.xlsx")

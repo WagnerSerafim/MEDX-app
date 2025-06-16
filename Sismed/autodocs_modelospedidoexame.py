@@ -30,7 +30,7 @@ Autodocs = getattr(Base.classes, "Autodocs")
 
 print("Sucesso! Inicializando migração...")
 
-json_file = glob.glob(f'{path_file}/modelosreceita.json')
+json_file = glob.glob(f'{path_file}/modelospedidoexame.json')
 
 with open(json_file[0], 'r', encoding='utf-8') as file:
     json_data = json.load(file)
@@ -48,15 +48,15 @@ not_inserted_cont = 0
 for dict in json_data:
 
     new_autodocs = Autodocs(
-        Texto=dict["MODRECtexto"],
-        Biblioteca=dict["MODRECnome"],
-        Pai = -1231858396
+        Texto=dict["MOPEEXtexto"],
+        Biblioteca=dict["MOPEEXnome"],
+        Pai = -51757203
     )
 
     log_data.append({
-        "Texto":dict["MODRECtexto"],
-        "Biblioteca":dict["MODRECnome"],
-        "Pai": -1231858396
+        "Texto":dict["MOPEEXtexto"],
+        "Biblioteca":dict["MOPEEXnome"],
+        "Pai": -51757203
         })
 
     session.add(new_autodocs)
@@ -67,11 +67,11 @@ for dict in json_data:
 
 session.commit()
 
-print(f"{inserted_cont} novos contatos foram inseridos com sucesso!")
+print(f"{inserted_cont} novos modelos de pedidos de exames foram inseridos com sucesso!")
 if not_inserted_cont > 0:
-    print(f"{not_inserted_cont} contatos não foram inseridos, verifique o log para mais detalhes.")
+    print(f"{not_inserted_cont} modelos de pedidos de exames não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_autodocs_modelosreceitas.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_autodocs_modelosreceitas.xlsx")
+create_log(log_data, log_folder, "log_inserted_autodocs_modelospedidoexame.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_autodocs_modelospedidoexame.xlsx")

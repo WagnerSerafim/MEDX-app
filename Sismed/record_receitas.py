@@ -1,4 +1,5 @@
 import csv
+import glob
 import json
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -7,6 +8,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
+from utils.utils import exists, create_log
 
 def get_date(json_dict):
     if json_dict["RECEITdatahora"] != "" and json_dict["RECEITdatahora"] != None:
@@ -28,6 +30,9 @@ def get_record(json_dict):
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
+path_file = input("Informe o caminho da pasta: ")                   
+
+print("Conectando no Banco de Dados...")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
@@ -41,16 +46,22 @@ session = SessionLocal()
 
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
-json_file = input("Informe a pasta do arquivo JSON: ").strip()                     
-log_folder = os.path.dirname(json_file)
+print("Sucesso! Inicializando migração...")
 
-with open(json_file, 'r', encoding='utf-8') as file:
+json_file = glob.glob(f'{path_file}/receitas.json')
+
+with open(json_file[0], 'r', encoding='utf-8') as file:
     json_data = json.load(file)
+                     
+log_folder = path_file
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
+inserted_cont = 0
+not_inserted_data = []
+not_inserted_cont = 0
 
 for dict in json_data:
 
@@ -79,12 +90,17 @@ for dict in json_data:
 
     session.add(new_record)
 
+    inserted_cont+=1
+    if inserted_cont % 100 == 0:
+        session.commit()
+
 session.commit()
 
-print("Históricos inseridos com sucesso!")
+print(f"{inserted_cont} novos historicos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} historicos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "record_receitas_log.xlsx")
-log_df.to_excel(log_file_path, index=False)
+create_log(log_data, log_folder, "log_inserted_record_receitas.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_receitas.xlsx")

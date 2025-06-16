@@ -13,6 +13,7 @@ dbase = input("Informe o DATABASE: ")
 path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 print("Conectando no Banco de Dados...")
+
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)

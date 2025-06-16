@@ -47,7 +47,15 @@ not_inserted_cont = 0
 
 for _, row in df.iterrows():
 
-    patient = exists(session, row["id"], "Id do Cliente", Contatos)
+    id_patient = row["patient_id"]
+    if pd.isna(id_patient) or id_patient in [None, '', 'None']:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente vazio ou inválido'
+        not_inserted_data.append(row_dict)
+        continue
+
+    patient = exists(session, id_patient, "Id do Cliente", Contatos)
     if not patient:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -67,9 +75,9 @@ for _, row in df.iterrows():
         continue
     else:
         id_scheduling = row["id"]
-    
-    if is_valid_date(row['start_date'], '%Y-%m-%d %H:%M:%S'):
-        if isinstance(row['start_date'],datetime):
+
+    if not pd.isna(row['start_date']) and is_valid_date(row['start_date'], '%Y-%m-%d %H:%M:%S'):
+        if isinstance(row['start_date'], datetime):
             start_time = row['start_date'].strftime('%Y-%m-%d %H:%M:%S')
         else:
             start_time = row['start_date']
@@ -80,23 +88,15 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    if is_valid_date(row['end_date'], '%Y-%m-%d %H:%M:%S'):
-        if isinstance(row['end_date'],datetime):
+    if not pd.isna(row['end_date']) and is_valid_date(row['end_date'], '%Y-%m-%d %H:%M:%S'):
+        if isinstance(row['end_date'], datetime):
             end_time = row['end_date'].strftime('%Y-%m-%d %H:%M:%S')
         else:
             end_time = row['end_date']
     else:
-            start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-            end_dt = start_dt + timedelta(minutes=30)
-            end_time = end_dt.strftime('%Y-%m-%d %H:%M:%S')
-
-    id_patient = row["paciente_id"]
-    if id_patient == "" or id_patient == None or id_patient == 'None':
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do paciente vazio'
-        not_inserted_data.append(row_dict)
-        continue
+        start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+        end_dt = start_dt + timedelta(minutes=30)
+        end_time = end_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     user = row['user_id']
 
