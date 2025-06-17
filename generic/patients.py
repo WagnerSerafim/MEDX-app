@@ -151,6 +151,8 @@ for _, row in df.iterrows():
 
     insurance = clean_value(verify_column_exists("CONVENIO", df, row))
 
+    insurance = clean_value(verify_column_exists("CONVENIO", df, row))
+
     observation = clean_value(verify_column_exists("OBSERVACOES", df, row))
     address = truncate_value(clean_value(address), 50)
 

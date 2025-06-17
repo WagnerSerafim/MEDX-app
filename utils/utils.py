@@ -9,12 +9,14 @@ def exists(session, id, id_table, table):
 def is_valid_date(date_str, date_format):
     if date_str in ["", None]:
         return False
+    # Converte para string se for datetime ou pd.Timestamp
+    if isinstance(date_str, (datetime, pd.Timestamp)):
+        date_str = date_str.strftime(date_format)
     try:
+        date_str = str(date_str)
         if "/" in date_str:
             date_str = date_str.replace("/", "-")
-        
-        date_obj = datetime.strptime(str(date_str), date_format)
-        
+        date_obj = datetime.strptime(date_str, date_format)
         if date_format in ["%d-%m-%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"]:
             if (1900 <= date_obj.year <= 2100) and (1 <= date_obj.month <= 12) and (1 <= date_obj.day <= 31) and \
                (0 <= date_obj.hour <= 23) and (0 <= date_obj.minute <= 59) and (0 <= date_obj.second <= 59):
@@ -29,7 +31,6 @@ def is_valid_date(date_str, date_format):
     except ValueError as e:
         print(f"Erro de valor na data {date_str}: {e}")
         return False
-    
     except TypeError as e:
         print(f"Erro de tipo na data {date_str}: {e}")
         return False

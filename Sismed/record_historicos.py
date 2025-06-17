@@ -1,4 +1,5 @@
 import csv
+import glob
 import json
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -7,6 +8,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
+from utils.utils import exists, create_log
 
 def get_date(json_dict):
     if json_dict["HISTORdatahoraalteracao"] != "" and json_dict["HISTORdatahoraalteracao"] != None:
@@ -18,16 +20,17 @@ def get_date(json_dict):
 
 def get_record(json_dict):
     record = ""
-    if json_dict["HISTORtexto"] != "" and json_dict["HISTORtexto"] != None:
+    if json_dict["HISTORtexto"] not in ["", None, "None"]:
         record = json_dict["HISTORtexto"]
     
-    return record
-
-    
+    return record    
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
+path_file = input("Informe o caminho da pasta: ")                    
+
+print("Conectando no Banco de Dados...")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
@@ -41,24 +44,48 @@ session = SessionLocal()
 
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
-json_file = input("Informe a pasta do arquivo JSON: ")
-with open(json_file, 'r', encoding='utf-8') as file:
+print("Sucesso! Inicializando migração...")
+
+json_file = glob.glob(f'{path_file}/historicos.json')
+
+with open(json_file[0], 'r', encoding='utf-8') as file:
     json_data = json.load(file)
                      
-log_folder = input("Informe a pasta onde deseja salvar o arquivo de log: ").strip()
+log_folder = path_file
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
+inserted_cont = 0
+not_inserted_data = []
+not_inserted_cont = 0
 
 for dict in json_data:
 
+    existing_record = exists(session,0 - dict["HISTORcodigo"], "Id do Histórico", HistoricoClientes)
+    if existing_record:
+        not_inserted_cont += 1
+        dict['Motivo'] = 'Id do Histórico já existe'
+        not_inserted_data.append(dict)
+        continue
+    else:
+        record_id = 0 - dict["HISTORcodigo"]
+
     record = get_record(dict)
     if record == "":
+        not_inserted_cont += 1
+        dict['Motivo'] = 'Histórico vazio'
+        not_inserted_data.append(dict)
         continue
 
-    print(f"LEN RECORD: {len(record)}")
+    if dict["PACIENcodigo"] in ["", None, "None"] or pd.isna(dict["PACIENcodigo"]):
+        not_inserted_cont += 1
+        dict['Motivo'] = 'Id do Cliente vazio'
+        not_inserted_data.append(dict)
+        continue
+    else:
+        patient_id = dict["PACIENcodigo"]
 
     date = get_date(dict)
 
@@ -67,13 +94,13 @@ for dict in json_data:
         Data=date,
     )
 
-    setattr(new_record, "Id do Cliente", dict["PACIENcodigo"])
-    setattr(new_record, "Id do Histórico", 0-dict["HISTORcodigo"])
+    setattr(new_record, "Id do Cliente", patient_id)
+    setattr(new_record, "Id do Histórico", record_id)
     setattr(new_record, "Id do Usuário", 0)
 
     log_data.append({
-        "Id do Histórico": dict["HISTORcodigo"],
-        "Id do Cliente": dict["PACIENcodigo"],
+        "Id do Histórico": record_id,
+        "Id do Cliente": patient_id,
         "Data": date,
         "Histórico": record,
         "Id do Usuário": 0,
@@ -81,12 +108,17 @@ for dict in json_data:
 
     session.add(new_record)
 
+    inserted_cont+=1
+    if inserted_cont % 100 == 0:
+        session.commit()
+
 session.commit()
 
-print("Históricos inseridos com sucesso!")
+print(f"{inserted_cont} novos historicos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} historicos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 
-log_df = pd.DataFrame(log_data)
-log_file_path = os.path.join(log_folder, "record_log.xlsx")
-log_df.to_excel(log_file_path, index=False)
+create_log(log_data, log_folder, "log_inserted_record_historicos.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_historicos.xlsx")

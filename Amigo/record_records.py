@@ -139,13 +139,13 @@ for _, row in df.iterrows():
         continue
     
     record, message = get_record(row)
-    if record in [None, '', 'None'] or message == "Erro ao processar JSON.": 
+    if record in [None, '', 'None', 'Tipo do histórico: MEDICINE<br>'] or message == "Erro ao processar JSON.": 
         not_inserted_cont += 1
         row_dict = row.to_dict()
         if message:
             row_dict['Motivo'] = message
         else:
-            row_dict['Motivo'] = 'Histórico vazio'
+            row_dict['Motivo'] = 'Histórico vazio ou apenas com tipo MEDICINE'
         not_inserted_data.append(row_dict)
         continue
     
