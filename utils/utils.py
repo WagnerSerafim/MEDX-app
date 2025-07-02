@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 import re
 import pandas as pd
+import math
 
 def exists(session, id, id_table, table):
     return session.query(table).filter(getattr(table, id_table)==id).first()
@@ -85,3 +86,44 @@ def clean_caracters(value):
         # Remove caracteres de controle ilegais no Excel (exceto \t, \n)
         return re.sub(r"[\x00-\x08\x0B-\x0C\x0E-\x1F]", "", value)
     return value
+
+def fixing_csv(input_path, output_path):
+    """
+    Corrige CSVs onde campos possuem aspas duplas internas não escapadas,
+    escapando corretamente para evitar erro de parsing no pandas.
+    """
+    import re
+
+    def escape_inner_quotes(field):
+        # Remove as aspas duplas do início/fim (delimitadoras)
+        if field.startswith('"') and field.endswith('"'):
+            inner = field[1:-1]
+            # Escapa aspas duplas internas
+            inner = inner.replace('"', '""')
+            return f'"{inner}"'
+        return field
+
+    with open(input_path, 'r', encoding='utf-8') as infile, open(output_path, 'w', encoding='utf-8', newline='') as outfile:
+        for line in infile:
+            # Divide a linha em campos, considerando aspas duplas
+            fields = []
+            current = ''
+            in_quotes = False
+            for c in line:
+                if c == '"':
+                    in_quotes = not in_quotes
+                    current += c
+                elif c == ';' and not in_quotes:
+                    fields.append(current)
+                    current = ''
+                else:
+                    current += c
+            if current:
+                fields.append(current.rstrip('\n'))
+
+            # Escapa aspas duplas internas em cada campo delimitado por aspas duplas
+            fields = [escape_inner_quotes(f) for f in fields]
+            outfile.write(';'.join(fields) + '\n')
+
+
+

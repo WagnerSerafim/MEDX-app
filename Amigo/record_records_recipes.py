@@ -11,28 +11,28 @@ import glob
 def get_record(row):
     record = ""
 
-    if not ((row["name"] == "" or row["name"] is None) and 
-            (row["dose"] == "" or row["dose"] is None) and 
-            (row["quantidade"] == "" or row["quantidade"] is None) and
-            (row["posologia"] == "" or row["posologia"] is None) and
-            (row["observation"] == "" or row["observation"] is None)):
+    if not ((row["name"] in ['None', None, ''] or pd.isna(row['name'])) and 
+            (row["dose"] in ['None', None, ''] or pd.isna(row['dose'])) and 
+            (row["quantidade"] in ['None', None, ''] or pd.isna(row['quantidade'])) and
+            (row["posologia"] in ['None', None, ''] or pd.isna(row['posologia'])) and
+            (row["observation"] in ['None', None, ''] or pd.isna(row['observation']))):
          
-        if not (row["type"] == "" or row["type"] is None):
+        if not(row["type"] in ['None', None, ''] or pd.isna(row['type'])):
             record += f"Tipo do histórico: {row['type']}<br>"
 
-        if not (row["name"] == "" or row["name"] is None):
+        if not (row["name"] in ['None', None, ''] or pd.isna(row['name'])):
             record += f"Nome: {row['name']}<br><br>"
         
-        if not (row["dose"] == "" or row["dose"] is None):
+        if not (row["dose"] in ['None', None, ''] or pd.isna(row['dose'])):
             record += f"Dose: {row['dose']}<br><br>"
 
-        if not (row["quantidade"] == "" or row["quantidade"] is None):
+        if not (row["quantidade"] in ['None', None, ''] or pd.isna(row['quantidade'])):
             record += f"Quantidade: {row['quantidade']}<br><br>"
         
-        if not (row["posologia"] == "" or row["posologia"] is None):
+        if not (row["posologia"] in ['None', None, ''] or pd.isna(row['posologia'])):
             record += f"posologia: {row['posologia']}<br><br>"
         
-        if not (row["observation"] == "" or row["observation"] is None):
+        if not (row["observation"] in ['None', None, ''] or pd.isna(row['observation'])):
             record += f"Observações: {row['observation']}<br><br>"
     
     return record

@@ -171,7 +171,8 @@ try:
     df = pd.read_sql(session.query(Contatos).statement, session.bind)
     df['Nome'] = df['Nome'].astype(str).str.upper().str.replace(' ', '', regex=False)
     df['Nome_Normalizado'] = df['Nome'].apply(remover_acentos)
-    df['Nascimento'] = df['Nascimento'].astype(str).str.strip()
+    # Normaliza nascimento para string no formato YYYY-MM-DD
+    df['Nascimento'] = pd.to_datetime(df['Nascimento'], errors='coerce').dt.strftime('%Y-%m-%d')
 except Exception as e:
     print(f"Erro ao ler os dados do banco de dados: {e}")
     exit()
