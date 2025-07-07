@@ -81,28 +81,18 @@ for _, row in df.iterrows():
             continue
 
     if 'NASCIMENTO' in df.columns:
-        if isinstance(row['NASCIMENTO'], datetime):
-            birthday = row['NASCIMENTO'].strftime('%Y-%m-%d')
+        if is_valid_date(str(row['NASCIMENTO']), '%Y-%m-%d %H:%M:%S'):
+            birthday = str(row['NASCIMENTO'])
         else:
-            # tenta converter string para datetime
-            try:
-                birthday_dt = pd.to_datetime(row['NASCIMENTO'], dayfirst=True, errors='coerce')
-                if pd.isna(birthday_dt):
-                    birthday = '1900-01-01'
-                else:
-                    birthday = birthday_dt.strftime('%Y-%m-%d')
-            except Exception:
-                birthday = '1900-01-01'
-    else:
-        birthday = '1900-01-01'
+            birthday = '1900-01-01'
 
     if 'SEXO' in df.columns:
-        if row['SEXO'] == "F":
+        if row['SEXO'] == 'F':
             sex = "F"
         else:
             sex = "M"
     else:
-        sex = "M"  
+        sex = "M"
 
     if 'NUMERO' in df.columns and 'ENDERECO' in df.columns:
         if row["NUMERO"] in [None, '', 'None']:

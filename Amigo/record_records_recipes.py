@@ -30,7 +30,7 @@ def get_record(row):
             record += f"Quantidade: {row['quantidade']}<br><br>"
         
         if not (row["posologia"] in ['None', None, ''] or pd.isna(row['posologia'])):
-            record += f"posologia: {row['posologia']}<br><br>"
+            record += f"Posologia: {row['posologia']}<br><br>"
         
         if not (row["observation"] in ['None', None, ''] or pd.isna(row['observation'])):
             record += f"Observações: {row['observation']}<br><br>"

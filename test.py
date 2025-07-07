@@ -1,48 +1,36 @@
-# import dask.dataframe as dd
-import pandas as pd
-import csv
+import base64
+from striprtf.striprtf import rtf_to_text
 
-csv.field_size_limit(10000000)
+# Seu conteúdo base64 dentro de CDATA
+encoded_content = """
+e1xydGYxXGFuc2lcYW5zaWNwZzEyNTJcZGVmZjBcZGVmbGFuZzEwNDZ7XGZvbnR0Ymx7XGYwXGZu
+aWxcZmNoYXJzZXQwIFRhaG9tYTt9fQ0KXHZpZXdraW5kNFx1YzFccGFyZFxiXGYwXGZzMjAgTWVk
+aWNhbWVudG9zIDsgTlwnYzNPDQpccGFyIEVYQU1FUyBERSBTQU5HVUUgOyAgUENSIDsgOCw3ICwg
+QU1JTEFTRSA7IDcyLDUgLCBBQ0lETyBVUklDTyA7IDcsODcNClxwYXIgR0xJQ09TRSA7IDEwOSw1
+ICwgQ09MRVNURVJPTCA7IDE4MCwwOSAsIExETCA7IDgzLDYzICwgSERMIDsgMzcsOTYgLCBUUklM
+R0lDRVJJREVPUyA7IDI5Miw1MSAgDQpccGFyIFBBQ0lFTlRFIFJFRkVSRSBUT05UVVJBLCBTRU0g
+RE9SIERFIENBQkVcJ2M3QSwgU0VNIENBTlNBXCdjN08sIEFDRUxFUkFcJ2M3XCdjM08gTk8gQ09S
+QVwnYzdcJ2MzTywgUEFMUElUQVwnYzdcJ2Q1RVMsIA0KXHBhciBTRU0gTkFVU0VBUywgRFBOLCBJ
+TkNIQVwnYzdcJ2MzTyBOQVMgUEVSTkFTLCBESUFCRVRFUywgQVNNQSwgQ09MRVNURVJPTCBBTFRP
+LCBFWCBUQUJBR0lTVEEgUEFST1UgSEEgDQpccGFyIDMwIEFOT1MsIE5FR0EgQ09OVFJJQVRPTUlE
+RU8sIFBST0JMRU1BIFVSSU5BUklPLCBESUdFU1RJVk8sIFRJUkVPSURFLCBORUdBIENBU09TIERF
+IERFUlJBTUUgT1UgDQpccGFyIElORkFSVE8gTkEgRkFNSUxJQQ0KXHBhciBFR1IsIEVVUE5FSUNP
+LCBBQ0lBTk9USUNPLCBTRU0gRURFTUEsIFBBIDE0MCBYIDkwIE1NSEcNClxwYXIgQUNWIC0gUkNS
+ICxGQyA4MiBCUE0sIEJORiwgU0VNIFNPUFJPUywgQ09NIEI0DQpccGFyIEFSIC0gTVYgUlVERSwg
+U0VNIEFEVkVOVElDSU9TDQpccGFyIEFEIC0gTkROIA0KXHBhciBFQ0cgLSBERU5UUk8gREEgTk9S
+TUFMSURBREUgDQpccGFyIDI1LzExLzIwMjIgIFNPTElDSVRPIE1BUEEgIA0KXHBhciANClxwYXIg
+MjgtMTEtMjIgbWFwYSAtIHJlcG9zdGEgaGlwZXJ0ZW5zaXZhIA0KXHBhciBsaXBpbGVzcyAxMDAg
+ZSBhc2VhIGhjdCAyMC8xMiwyNSIA0KXHBhciB9DQoA
+"""
 
-# Caminho do arquivo CSV
-input_csv = r"E:\Migracoes\Schema_30911_gestaoDs\e25f794b35edd6f000afa3445004349d\pacientes.csv"
+# Corrigir o padding base64
+padding = len(encoded_content) % 4
+if padding != 0:
+    encoded_content += '=' * (4 - padding)
 
-# Defina o arquivo de saída
-output_csv = r"E:\Migracoes\Schema_30911_gestaoDs\e25f794b35edd6f000afa3445004349d\pacientes_3.csv"
-
-# Abrir o arquivo CSV original e criar um arquivo de saída limpo
-with open(input_csv, 'r', encoding='utf-8') as infile, open(output_csv, 'w', newline='', encoding='utf-8') as outfile:
-    # Criar o leitor e escritor CSV
-    reader = csv.DictReader(infile)
-    fieldnames = reader.fieldnames
-    writer = csv.DictWriter(outfile, fieldnames=fieldnames)
-    
-    # Escrever o cabeçalho no arquivo de saída
-    writer.writeheader()
-    
-    # Iterar sobre as linhas do arquivo
-    for row in reader:
-        # Se a coluna 'Observacao' existir, substitua as quebras de linha por espaços
-        if 'Observacao' in row:
-            row['Observacao'] = row['Observacao'].replace('\n', ' ').replace('\r', ' ')
-        
-        # Filtra apenas as chaves válidas
-        clean_row = {k: v for k, v in row.items() if k in fieldnames}
-        writer.writerow(clean_row)
-
-# Agora o arquivo 'arquivo_limpo.csv' está sem quebras de linha na coluna 'text'
-print(f"Arquivo limpo foi salvo como {output_csv}")
+# Decodificando o conteúdo base64
+decoded_content = base64.b64decode(encoded_content).decode('latin1')
+clean_text = rtf_to_text(decoded_content)
 
 
-# # Lê o CSV com Dask, ajustando os parâmetros de leitura
-# df = dd.read_csv(output_csv, dtype={'extra': 'object', 'subtype': 'object', 'id': int, 'title': 'object', 'created_at': 'object', 'updated_at': 'object', 'deleted_at': 'object', 'user_id': int, 'patient_id': int, 'record_type_id': 'object', 'record_subtype_id': 'object', 'record_extra_id': 'object', 'record_extra_subtype_id': 'object'}, 
-#                  quoting=1, on_bad_lines='skip', engine='python', assume_missing=True)
-
-# df = df.replace({r'\n': ' '}, regex=True)
-
-# print(f"Total de partições: {df.npartitions}")
-
-# # Conta o número de linhas
-# num_linhas = df.compute().shape[0]
-# print(f"Total de linhas no arquivo (computado): {num_linhas}")
-
+print(clean_text)
