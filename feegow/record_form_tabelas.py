@@ -79,7 +79,7 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df_main.iterrows():
+for idx, row in df_main.iterrows():
 
     patient = exists(session, row['NomePaciente'], "Nome", Contatos)
     if patient:
@@ -126,6 +126,9 @@ for _, row in df_main.iterrows():
 
     if inserted_cont % 10000 == 0:
         session.commit()
+
+    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df_main):
+        print(f"Processados {idx + 1} de {len(df_main)} registros ({(idx + 1) / len(df_main) * 100:.2f}%)")
 
 session.commit()
 

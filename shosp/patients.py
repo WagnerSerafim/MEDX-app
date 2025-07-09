@@ -1,3 +1,4 @@
+from datetime import datetime
 import glob
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -6,6 +7,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, truncate_value
+import csv
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -28,9 +30,10 @@ Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-extension_file = glob.glob(f'{path_file}/pacientes.xlsx')
+csv.field_size_limit(1000000)
+extension_file = glob.glob(f'{path_file}/pacientes-*.csv')
 
-df = pd.read_excel(extension_file[0])
+df = pd.read_csv(extension_file[0], sep=',', engine='python')
 
 log_folder = path_file
 
@@ -42,62 +45,94 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for idx, row in df.iterrows():
+for _, row in df.iterrows():
 
-    existing_record = exists(session, row['id'], "Id do Cliente", Contatos)
+    if row["Prontuario"] in [None, '', 'None'] or pd.isna(row["Prontuario"]):
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Cliente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+    else:
+        id_patient = row["Prontuario"]
+
+    existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
     if existing_record:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente já existe'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
 
-    if row["id"] == None or row["id"] == '' or row["id"] == 'None':
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente vazio'
-        not_inserted_data.append(row_dict)
-        continue
-    else:
-        id_patient = row["id"]
     
-    if row['nome_paciente'] == None or row['nome_paciente'] == '' or row['nome_paciente'] == 'None':
+    if row['Nome'] in [None, '', 'None'] or pd.isna(row['Nome']):
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Nome do Paciente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
     else:
-        name = row['nome_paciente']
+        name = row['Nome']
 
-    if is_valid_date(row["nascimento"], "%Y-%m-%d"):
-        birthday = row['nascimento']
+    if is_valid_date(str(row["Data de Nascimento"]), "%Y-%m-%d"):
+        birthday = str(row['Data de Nascimento'])
     else:
-        birthday = '01/01/1900'
+        birthday = '1900-01-01'
 
-    if row['sexo'] == 2.0:
+    if row['Sexo'] == 'F':
         sex = 'F'
     else:
         sex = 'M'
+
+    if pd.isna(row['Email']):
+        email = ''
+    else:
+        email = row['Email']
+
+    if pd.isna(row['CPF']):
+        cpf = ''
+    else:
+        cpf = row['CPF']
+
+    if pd.isna(row['Telefone']):
+        telephone = ''
+    else:
+        telephone = row['Telefone']
+
+    if pd.isna(row['Celular']):
+        cellphone = ''
+    else:
+        cellphone = row['Celular']
+
+
+    if pd.isna(row['Logradouro']):
+        address = ''
+    else:
+        address = f'{row['Logradouro']} {row['Numero'] if not pd.isna(row['Numero']) else ''}'
+
+    if pd.isna(row['CEP']):
+        cep = ''
+    else:
+        cep = row['CEP']
     
+    if pd.isna(row['Bairro']):
+        neighbourhood = ''
+    else:
+        neighbourhood = row['Bairro']
 
-    email = row['email']
-    cpf = row['cpf']
-    rg = row['Documento']
-    telephone = row['fixo_1']
-    cellphone = row['celular']
-    cep = None
-    complement = None
-    neighbourhood = None
-    city = None
-    state = None
-    occupation = row['profissao']
-    mother = None
-    father = None
-    observation = row['Observacoes']
+    complement = row['Complemento']
+    mother = row['Nome da Mae']
 
-
-    address = None
+    city = ''
+    state = ''
+    observation = ''
+    marital_status = ''
+    occupation = ''
+    rg = ''
+    father = ''
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -120,6 +155,8 @@ for idx, row in df.iterrows():
     setattr(new_patient, "Pai", truncate_value(father, 50))
     setattr(new_patient, "Mãe", truncate_value(mother, 50))
     setattr(new_patient, "RG", truncate_value(rg, 25))
+    setattr(new_patient, "Observações", observation)
+    setattr(new_patient, "Estado Civil", truncate_value(marital_status, 25))
 
     
     log_data.append({
@@ -140,6 +177,10 @@ for idx, row in df.iterrows():
         "Endereço Comercial": truncate_value(complement, 50),
         "Bairro Residencial": truncate_value(neighbourhood, 25),
         "Cidade Residencial": city,
+        "Estado Residencial": state,
+        "Observações": observation,
+        "Estado Civil": marital_status,
+        "TimeStamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
 
     session.add(new_patient)
@@ -147,9 +188,6 @@ for idx, row in df.iterrows():
     inserted_cont+=1
     if inserted_cont % 100 == 0:
         session.commit()
-
-    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df):
-        print(f"Processados {idx + 1} de {len(df)} registros ({(idx + 1) / len(df) * 100:.2f}%)")
 
 session.commit()
 
@@ -159,5 +197,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_patients_pacientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_patients_pacientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_patients.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_patients.xlsx")

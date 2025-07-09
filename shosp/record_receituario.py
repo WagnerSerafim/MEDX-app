@@ -9,6 +9,26 @@ import csv
 from datetime import datetime
 from utils.utils import is_valid_date, exists, create_log
 
+def get_record(row):
+    record = ''
+
+    if not (row['Item'] in [None, '', 'None'] or pd.isna(row['Item'])):
+        record += f"Item: {row['Item']}<br>"
+    
+    if not (row['Dosagem'] in [None, '', 'None'] or pd.isna(row['Dosagem'])):
+        record += f"Dosagem: {row['Dosagem']}<br>"
+
+    if not (row['Frequencia'] in [None, '', 'None'] or pd.isna(row['Frequencia'])):
+        record += f"Frequencia: {row['Frequencia']}<br>"
+    
+    if not (row['Observacao'] in [None, '', 'None'] or pd.isna(row['Observacao'])):
+        record += f"Observacao: {row['Observacao']}<br>"
+    
+    if not (row['Quantidade'] in [None, '', 'None'] or pd.isna(row['Quantidade'])):
+        record += f"Quantidade: {row['Quantidade']}<br>"
+    
+    return record
+
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
@@ -26,11 +46,10 @@ SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
-Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/pacientes_prontuarios_corrigido2.csv')
+todos_arquivos = glob.glob(f'{path_file}/receituario-*.csv')
 
 csv.field_size_limit(1000000)
 df = pd.read_csv(todos_arquivos[0], sep=',')
@@ -45,22 +64,37 @@ log_data = []
 inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
+id_cont = 8715
 
 for _, row in df.iterrows():
 
-    if row['CONTEUDO_HTML'] in [None, '', 'None'] or pd.isna(row['CONTEUDO_HTML']):
-        not_inserted_cont +=1
+    id_cont += 1
+
+    if exists(session, id_cont, "Id do Histórico", HistoricoClientes):
+        not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Histórico vazio ou inválido'
+        row_dict['Motivo'] = 'Histórico já existe'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
     else:
-        record = f"{row['TIPO']}<br><br>{row['CONTEUDO_HTML']}"
+        id_record = id_cont
 
-    date = '01/01/1900 00:00'
+    record = get_record(row)
+    if record == '':
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Histórico vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
 
-    if row['PACIENTE_CODIGO'] in [None, '', 'None'] or pd.isna(row['PACIENTE_CODIGO']):
+    if is_valid_date(str(row['Data']), '%Y-%m-%d'):
+        date = f'{str(row['Data'])} 00:00'
+    else:
+        date = '01/01/1900 00:00'
+
+    if row['Prontuario'] in [None, '', 'None'] or pd.isna(row['Prontuario']):
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do paciente vazio'
@@ -68,24 +102,18 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     else:
-        patient = exists(session, row['PACIENTE_CODIGO'], "Referências", Contatos)
-        if not patient:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Paciente não encontrado'
-            row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            not_inserted_data.append(row_dict)
-            continue
-        id_patient = getattr(patient, "Id do Cliente")
+        id_patient = row['Prontuario']
     
     new_record = HistoricoClientes(
         Histórico=record,
         Data=date
     )
+    setattr(new_record, "Id do Histórico", id_record)
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
     
     log_data.append({
+        "Id do Histórico": id_record,
         "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
@@ -105,5 +133,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_receituario.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_receituario.xlsx")

@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 sid = input("Informe o SoftwareID: ")
@@ -28,11 +28,10 @@ SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 Agenda = getattr(Base.classes, "Agenda")
-Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
-todos_arquivos = glob.glob(f'{path_file}/agendamentos.csv')
+todos_arquivos = glob.glob(f'{path_file}/atendimento-*.csv')
 
 csv.field_size_limit(1000000000)  
 df = pd.read_csv(todos_arquivos[0], sep=',')
@@ -47,33 +46,27 @@ log_data = []
 inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
+id_scheduling_cont = 0
 
 for _, row in df.iterrows():
-    
-    date_str = row['AGENDAMENTO_INICIO']
-    if date_str is None or pd.isna(date_str) or date_str == '':
+
+    id_scheduling_cont += 1
+
+    if exists(session, id_scheduling_cont, 'Id do Agendamento', Agenda):
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Data ou Hora vazia'
+        row_dict['Motivo'] = 'Id do agendamento já existe'
         row_dict['Timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         not_inserted_data.append(row_dict)
         continue
-
-    date_obj = datetime.strptime(date_str, '%d/%m/%Y %H:%M:%S')
-    date_str = date_obj.strftime('%Y-%m-%d %H:%M')
-    if is_valid_date(date_str, '%Y-%m-%d %H:%M'):
+    else:
+        id_scheduling = id_scheduling_cont
+    
+    date_str = f'{str(row['Data'])} {str(row['Horario agendamento'])}'
+    if is_valid_date(date_str, '%Y-%m-%d %H:%M:%S'):
         start_time = date_str
-        
-        end_str = row['AGENDAMENTO_FIM']
-        if end_str is None or pd.isna(end_str) or end_str == '':
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Data ou Hora de fim vazia'
-            row_dict['Timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            not_inserted_data.append(row_dict)
-            continue
-        end_date_obj = datetime.strptime(end_str, '%d/%m/%Y %H:%M:%S')
-        end_time = end_date_obj.strftime('%Y-%m-%d %H:%M') 
+        end_str = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S') + timedelta(minutes=30)
+        end_time = end_str.strftime('%Y-%m-%d %H:%M:%S')
     else:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -82,27 +75,18 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    if row['PACIENTE_CODIGO'] in [None, '', 'None'] or pd.isna(row['PACIENTE_CODIGO']):
+    if row['Prontuario'] in [None, '', 'None'] or pd.isna(row['Prontuario']):
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do paciente vazio'
         not_inserted_data.append(row_dict)
         continue
     else:
-        print(str(row['PACIENTE_CODIGO']))
-        patient = exists(session, str(row['PACIENTE_CODIGO']), 'Referências', Contatos)
-        if not patient:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Paciente não encontrado'
-            not_inserted_data.append(row_dict)
-            continue
-        else:
-            id_patient = getattr(patient, "Id do Contato")
+        id_patient = row['Prontuario']
 
-    id_user = 1
+    id_user = row['Prestador']
 
-    description = f'{patient.Nome} - {row['AGENDAMENTO_STATUS']}'
+    description = f'{row['Nome do paciente']}'
 
     new_schedulling = Agenda(
         Descrição=description,
@@ -111,10 +95,12 @@ for _, row in df.iterrows():
         Status=1,
     )
 
+    setattr(new_schedulling, "Id do Agendamento", id_scheduling)
     setattr(new_schedulling, "Vinculado a", id_patient)
     setattr(new_schedulling, "Id do Usuário", id_user)
     
     log_data.append({
+        "Id do Agendamento": id_scheduling,
         "Vinculado a": id_patient,
         "Id do Usuário": id_user,
         "Início": start_time,

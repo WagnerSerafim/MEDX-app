@@ -60,7 +60,7 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df.iterrows():
+for idx, row in df.iterrows():
 
     record = get_record(row)
     if record == "":
@@ -106,8 +106,13 @@ for _, row in df.iterrows():
     if inserted_cont % 10000 == 0:
         session.commit()
 
+    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df):
+        print(f"Processados {idx + 1} de {len(df)} registros ({(idx + 1) / len(df) * 100:.2f}%)")
+
+
 session.commit()
 
+print("Migração concluída! Gerando logs...")
 print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
 if not_inserted_cont > 0:
     print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")

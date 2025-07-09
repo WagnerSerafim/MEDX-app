@@ -58,7 +58,7 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df_main.iterrows():
+for idx, row in df_main.iterrows():
 
     existing_record = exists(session, row['id'], "Id do Histórico", HistoricoClientes)
     if existing_record:
@@ -86,11 +86,15 @@ for _, row in df_main.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    if is_valid_date(row['data_hora'], '%Y-%m-%d %H:%M:%S'):
-        date = row['data_hora']
+    # Validação para data_hora
+    data_hora = str(row['data_hora']) if row['data_hora'] is not None else ""
+    if is_valid_date(data_hora, '%Y-%m-%d %H:%M:%S'):
+        date = data_hora
+    elif is_valid_date(data_hora, '%Y-%m-%d'):
+        date = data_hora + ' 00:00:00'
     else:
         date = '01/01/1900 00:00'
-    
+
     new_record = HistoricoClientes(
         Histórico=record,
         Data=date
@@ -98,7 +102,7 @@ for _, row in df_main.iterrows():
     setattr(new_record, "Id do Histórico", (row['id']))
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
-    
+
     log_data.append({
         "Id do Histórico": (row['id']),
         "Id do Cliente": id_patient,
@@ -109,8 +113,11 @@ for _, row in df_main.iterrows():
     inserted_cont+=1
     session.add(new_record)
 
-    if inserted_cont % 10000 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
+
+    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df_main):
+        print(f"Processados {idx + 1} de {len(df_main)} registros ({(idx + 1) / len(df_main) * 100:.2f}%)")
 
 session.commit()
 

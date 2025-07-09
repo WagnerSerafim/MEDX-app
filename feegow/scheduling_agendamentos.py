@@ -1,5 +1,4 @@
 import glob
-import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -46,7 +45,7 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df.iterrows():
+for idx, row in df.iterrows():
 
     patient = exists(session, row["paciente_id"], "Id do Cliente", Contatos)
     if not patient:
@@ -120,6 +119,9 @@ for _, row in df.iterrows():
 
     if inserted_cont % 10000 == 0:
         session.commit()
+
+    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df):
+        print(f"Processados {idx + 1} de {len(df)} registros ({(idx + 1) / len(df) * 100:.2f}%)")
 
 session.commit()
 
