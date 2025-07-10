@@ -56,7 +56,7 @@ for dict in json_data:
         dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(dict)
         continue
-    id_patient = getattr(patient, "Referências")
+    id_patient = getattr(patient, "Id do Contato")
 
     description = dict.get("title", "")
     start_time = dict.get("start", "")
@@ -65,7 +65,7 @@ for dict in json_data:
 
     new_scheduling = Agenda()
 
-    setattr(new_scheduling, "Id do Cliente", id_patient)
+    setattr(new_scheduling, "Vinculado a", id_patient)
     setattr(new_scheduling, "Id do Usuário", id_user)
     setattr(new_scheduling, "Descrição", description)
     setattr(new_scheduling, "Início", start_time)
@@ -73,7 +73,7 @@ for dict in json_data:
     setattr(new_scheduling, "Status", 1)
 
     log_data.append({
-        'Id do Cliente': id_patient,
+        'Vinculado a': id_patient,
         'Id do Usuário': id_user,
         'Descrição': description,
         'Início': start_time,
