@@ -56,7 +56,7 @@ for dict in json_data:
         dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(dict)
         continue
-    id_patient = getattr(patient, "Id do Contato")
+    id_patient = getattr(patient, "Id do Cliente")
 
     description = dict.get("title", "")
     start_time = dict.get("start", "")
