@@ -150,6 +150,7 @@ try:
     Base.prepare(autoload_with=engine)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
+    print(Base.classes.keys())
     Contatos = Base.classes.Contatos
     HistoricoClientes = Base.classes['Histórico de Clientes']
     Agenda = Base.classes.Agenda

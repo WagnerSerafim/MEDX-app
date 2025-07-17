@@ -1,6 +1,6 @@
 import os
 import json
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.automap import automap_base
 import urllib
@@ -23,10 +23,14 @@ session = SessionLocal()
 if not os.path.exists(backup_dir):
     os.makedirs(backup_dir)
 
-inspector = inspect(engine)
-tabelas = inspector.get_table_names()
+tabelas = [
+    "Estoque",
+    "Estoque Movimentação",
+    "Estoque Movimentação Itens"
+]
 
 registros_por_tabela = {}
+backup_ok = True
 
 for tabela in tabelas:
     print(f"Exportando tabela: {tabela}")
@@ -38,11 +42,30 @@ for tabela in tabelas:
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(rows, f, ensure_ascii=False, indent=2, default=str)
         registros_por_tabela[tabela] = len(rows)
+        # Confirma se o backup foi gerado corretamente
+        if not os.path.exists(json_path) or os.path.getsize(json_path) == 0:
+            print(f"Falha ao gerar backup da tabela {tabela}. Operação de exclusão abortada.")
+            backup_ok = False
+            break
     except Exception as e:
         print(f"Erro ao exportar {tabela}: {e}")
+        backup_ok = False
+        break
 
 print("\nResumo dos registros exportados:")
 for tabela, qtd in registros_por_tabela.items():
     print(f"{tabela}: {qtd} registros")
 
-print("Backup concluído!")
+if backup_ok:
+    print("\nBackup gerado com sucesso! Iniciando exclusão dos dados das tabelas...")
+    for tabela in tabelas:
+        try:
+            session.execute(text(f"DELETE FROM [{tabela}]"))
+            session.commit()
+            print(f"Todos os registros da tabela {tabela} foram excluídos.")
+        except Exception as e:
+            print(f"Erro ao excluir registros da tabela {tabela}: {e}")
+else:
+    print("\nBackup não gerado corretamente. Nenhum dado foi excluído.")
+
+session.close()

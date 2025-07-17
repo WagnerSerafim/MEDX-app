@@ -12,6 +12,13 @@ backup_dir = input("Informe o diretório para salvar os backups: ").strip()
 
 print("Iniciando a conexão com o banco de dados...")
 
+tabelas = []
+while True:
+    tabela = input("Digite o nome da tabela para backup (ou 'N' para parar): ").strip()
+    if tabela.upper() == 'N' or tabela == '':
+        break
+    tabelas.append(tabela)
+
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
@@ -22,9 +29,6 @@ session = SessionLocal()
 
 if not os.path.exists(backup_dir):
     os.makedirs(backup_dir)
-
-inspector = inspect(engine)
-tabelas = inspector.get_table_names()
 
 registros_por_tabela = {}
 
@@ -44,5 +48,3 @@ for tabela in tabelas:
 print("\nResumo dos registros exportados:")
 for tabela, qtd in registros_por_tabela.items():
     print(f"{tabela}: {qtd} registros")
-
-print("Backup concluído!")
