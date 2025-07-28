@@ -3,7 +3,7 @@ import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, cast, String
 import pandas as pd
 import urllib
 from utils.utils import create_log, exists
@@ -50,7 +50,7 @@ not_inserted_data = []
 not_inserted_cont = 0
 
 print("Iniciando a inserção dos históricos...")
-for dict in json_data:
+for idx, dict in enumerate(json_data, 1):
 
     consulta = dict.get("codcon", None)
     if consulta is None or consulta not in consulta_lookup:
@@ -71,7 +71,7 @@ for dict in json_data:
             not_inserted_data.append(dict)
             continue
     
-    patient = exists(session, id_patient, "Referências", Contatos)
+    patient = exists(session, id_patient, "Id do Cliente", Contatos)
     if not patient:
         not_inserted_cont += 1
         dict['Motivo'] = 'Id do paciente não encontrado no banco de dados'
@@ -89,9 +89,22 @@ for dict in json_data:
 
     record = dict['conteudo']
 
+    exists_record = session.query(HistoricoClientes).filter(
+        getattr(HistoricoClientes, "Id do Cliente") == id_patient,
+        getattr(HistoricoClientes, "Data") == date,
+        cast(getattr(HistoricoClientes, "Histórico"), String) == record
+).first()
+
+    if exists_record:
+        not_inserted_cont += 1
+        dict['Motivo'] = 'Histórico já existe para este paciente nesta data'
+        dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(dict)
+        continue
+
     new_record = HistoricoClientes(
         Histórico=record,
-        Data=date,
+        Data=date
     )
 
     setattr(new_record, "Id do Cliente", id_patient)
@@ -110,6 +123,9 @@ for dict in json_data:
 
     if inserted_cont % 1000 == 0:
         session.commit()
+
+    if idx % 1000 == 0 or idx == len(json_data):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont}")
 
 session.commit()
 print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")

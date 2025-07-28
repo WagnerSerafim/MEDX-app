@@ -74,7 +74,7 @@ for row in json_data:
     else:
         id_patient = row["codp"] 
 
-    existing_record = exists(session, id_patient, "Referências", Contatos)
+    existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
     if existing_record:
         not_inserted_cont +=1
         row_dict = row
@@ -130,7 +130,7 @@ for row in json_data:
         Email=truncate_value(email, 100),
     )
 
-    setattr(new_patient, "Referências", id_patient)
+    setattr(new_patient, "Id do Cliente", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
     setattr(new_patient, "Cep Residencial", truncate_value(cep, 10))
     setattr(new_patient, "Endereço Residencial", truncate_value(address, 50))
@@ -176,7 +176,7 @@ for row in json_data:
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
     if (idx) % 1000 == 0 or (idx) == len(json_data):

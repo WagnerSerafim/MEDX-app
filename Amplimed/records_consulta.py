@@ -76,7 +76,7 @@ print("Iniciando a inserção dos históricos...")
 
 for dict in json_data:
 
-    patient = exists(session, dict["codp"], "Referências", Contatos)
+    patient = exists(session, dict["codp"], "Id do Cliente", Contatos)
     if not patient:
         not_inserted_cont += 1
         dict['Motivo'] = 'Id do paciente não encontrado'

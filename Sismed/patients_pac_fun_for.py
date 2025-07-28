@@ -184,7 +184,7 @@ for dict in json_data:
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()
