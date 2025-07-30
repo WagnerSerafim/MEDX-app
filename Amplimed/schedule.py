@@ -47,9 +47,12 @@ not_inserted_cont = 0
 
 print("Iniciando a inserção dos agendamentos...")
 
-for dict in json_data:
+for idx, dict in enumerate(json_data, 1):
 
-    patient = exists(session, dict["codp"], "Referências", Contatos)
+    if idx % 1000 == 0 or idx == len(json_data):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(json_data)) * 100, 2)}%")
+
+    patient = exists(session, dict["codp"], "Id do Cliente", Contatos)
     if not patient:
         not_inserted_cont += 1
         dict['Motivo'] = 'Id do paciente não encontrado'
@@ -88,9 +91,9 @@ for dict in json_data:
         session.commit()
 
 session.commit()
-print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
+print(f"{inserted_cont} novos agendamentos foram inseridos com sucesso!")
 if not_inserted_cont > 0:
-    print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")
+    print(f"{not_inserted_cont} agendamentos não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 

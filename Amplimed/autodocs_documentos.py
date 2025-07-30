@@ -92,9 +92,9 @@ for dict in json_data:
         session.commit()
 
 session.commit()
-print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
+print(f"{inserted_cont} novos receituários foram inseridos com sucesso!")
 if not_inserted_cont > 0:
-    print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")
+    print(f"{not_inserted_cont} receituários não foram inseridos, verifique o log para mais detalhes.")
 
 session.close()
 

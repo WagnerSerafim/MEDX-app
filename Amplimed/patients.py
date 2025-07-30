@@ -61,8 +61,10 @@ not_inserted_cont = 0
 idx = 0
 
 for row in json_data:
-
     idx += 1
+
+    if idx % 1000 == 0 or idx == len(json_data):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(json_data)) * 100, 2)}%")
 
     if row["codp"] in [None, '', 'None'] or pd.isna(row["codp"]):
         not_inserted_cont +=1
@@ -178,9 +180,6 @@ for row in json_data:
     inserted_cont+=1
     if inserted_cont % 1000 == 0:
         session.commit()
-
-    if (idx) % 1000 == 0 or (idx) == len(json_data):
-        print(f"Processados {idx} de {len(json_data)} registros ({(idx) / len(json_data) * 100:.2f}%)")
 
 session.commit()
 

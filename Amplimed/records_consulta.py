@@ -74,7 +74,10 @@ not_inserted_cont = 0
 
 print("Iniciando a inserção dos históricos...")
 
-for dict in json_data:
+for idx, dict in enumerate(json_data, 1):
+
+    if idx % 1000 == 0 or idx == len(json_data):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(json_data)) * 100, 2)}%")
 
     patient = exists(session, dict["codp"], "Id do Cliente", Contatos)
     if not patient:

@@ -52,6 +52,9 @@ not_inserted_cont = 0
 print("Iniciando a inserção dos históricos...")
 for idx, dict in enumerate(json_data, 1):
 
+    if idx % 1000 == 0 or idx == len(json_data):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(json_data)) * 100, 2)}%")
+
     consulta = dict.get("codcon", None)
     if consulta is None or consulta not in consulta_lookup:
         not_inserted_cont += 1
@@ -123,9 +126,6 @@ for idx, dict in enumerate(json_data, 1):
 
     if inserted_cont % 1000 == 0:
         session.commit()
-
-    if idx % 1000 == 0 or idx == len(json_data):
-        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont}")
 
 session.commit()
 print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")

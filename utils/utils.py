@@ -4,6 +4,12 @@ import re
 import pandas as pd
 import math
 
+def verify_nan(value):
+    """Verifica se o valor é NaN ou None e retorna None."""
+    if value in [None, '', 'None', 'nan', 'NaN', 'NAN', 'NULL', 'null'] or pd.isna(value):
+        return ''
+    return value
+
 def exists(session, id, id_table, table):
     return session.query(table).filter(getattr(table, id_table)==id).first()
 
