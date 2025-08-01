@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-from utils.utils import create_log, exists
+from utils.utils import create_log, exists, verify_nan
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -52,6 +52,22 @@ for idx, dict in enumerate(json_data, 1):
     if idx % 1000 == 0 or idx == len(json_data):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(json_data)) * 100, 2)}%")
 
+    id_schedule = verify_nan(dict['id'])
+    if id_schedule == '':
+        not_inserted_cont += 1
+        dict['Motivo'] = 'Id do agendamento vazio'
+        dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(dict)
+        continue
+
+    existing_schedule = exists(session, id_schedule, 'Id do Agendamento', Agenda)
+    if existing_schedule:
+        not_inserted_cont += 1
+        dict['Motivo'] = 'Id do agendamento já existe'
+        dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(dict)
+        continue
+
     patient = exists(session, dict["codp"], "Id do Cliente", Contatos)
     if not patient:
         not_inserted_cont += 1
@@ -68,6 +84,7 @@ for idx, dict in enumerate(json_data, 1):
 
     new_scheduling = Agenda()
 
+    setattr(new_scheduling, "Id do Agendamento", id_schedule)
     setattr(new_scheduling, "Vinculado a", id_patient)
     setattr(new_scheduling, "Id do Usuário", id_user)
     setattr(new_scheduling, "Descrição", description)
@@ -76,6 +93,7 @@ for idx, dict in enumerate(json_data, 1):
     setattr(new_scheduling, "Status", 1)
 
     log_data.append({
+        'Id do Agendamento': id_schedule,
         'Vinculado a': id_patient,
         'Id do Usuário': id_user,
         'Descrição': description,
