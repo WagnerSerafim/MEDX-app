@@ -42,6 +42,20 @@ def limpar_numero(valor):
     valor_str = valor_str.strip()
     return valor_str
 
+def limpar_cpf(valor):
+    if valor is None:
+        return None
+    valor_str = str(valor)
+    # Remove .0 do final
+    if valor_str.endswith('.0'):
+        valor_str = valor_str[:-2]
+    # Remove tudo que não for número
+    valor_str = re.sub(r'\D', '', valor_str)
+    # Adiciona zeros à esquerda se tiver menos de 11 dígitos
+    if len(valor_str) < 11 and len(valor_str) > 0:
+        valor_str = valor_str.zfill(11)
+    return valor_str if valor_str else None
+
 print("Atualizando campos em Contatos...")
 
 registros = session.query(Contatos).all()
@@ -53,7 +67,15 @@ not_updated_data = []
 for contato in registros:
     alterado = False
     campos_alterados = {}
-    for campo in ['CPF/CGC', 'Cep Residencial', 'Telefone Residencial', 'Celular', 'RG']:
+    # CPF/CGC com tratamento especial
+    valor_cpf = getattr(contato, 'CPF/CGC', None)
+    novo_cpf = limpar_cpf(valor_cpf)
+    if valor_cpf != novo_cpf:
+        campos_alterados['CPF/CGC'] = {"anterior": valor_cpf, "novo": novo_cpf}
+        setattr(contato, 'CPF/CGC', novo_cpf)
+        alterado = True
+    # Demais campos
+    for campo in ['Cep Residencial', 'Telefone Residencial', 'Celular', 'RG']:
         valor = getattr(contato, campo, None)
         novo_valor = limpar_numero(valor)
         if valor != novo_valor:
