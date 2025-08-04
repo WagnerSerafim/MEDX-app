@@ -156,6 +156,9 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((inserted_cont / len(df)) * 100, 2)}%")
 
+    if (idx) % 1000 == 0 or (idx) == len(df):
+        print(f"Processados {idx} de {len(df)} registros ({(idx) / len(df) * 100:.2f}%)")
+
 session.commit()
 
 print(f"{inserted_cont} novos contatos foram inseridos com sucesso!")
