@@ -1,4 +1,3 @@
-import glob
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
@@ -6,7 +5,37 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-from utils.utils import create_log, is_valid_date, exists
+from utils.utils import create_log, is_valid_date, exists, verify_nan
+import glob
+
+def get_record(row):
+    record = ""
+
+    if not ((row["name"] in ['None', None, ''] or pd.isna(row['name'])) and 
+            (row["dose"] in ['None', None, ''] or pd.isna(row['dose'])) and 
+            (row["quantidade"] in ['None', None, ''] or pd.isna(row['quantidade'])) and
+            (row["posologia"] in ['None', None, ''] or pd.isna(row['posologia'])) and
+            (row["observation"] in ['None', None, ''] or pd.isna(row['observation']))):
+         
+        if not(row["type"] in ['None', None, ''] or pd.isna(row['type'])):
+            record += f"Tipo do histórico: {row['type']}<br>"
+
+        if not (row["name"] in ['None', None, ''] or pd.isna(row['name'])):
+            record += f"Nome: {row['name']}<br><br>"
+        
+        if not (row["dose"] in ['None', None, ''] or pd.isna(row['dose'])):
+            record += f"Dose: {row['dose']}<br><br>"
+
+        if not (row["quantidade"] in ['None', None, ''] or pd.isna(row['quantidade'])):
+            record += f"Quantidade: {row['quantidade']}<br><br>"
+        
+        if not (row["posologia"] in ['None', None, ''] or pd.isna(row['posologia'])):
+            record += f"Posologia: {row['posologia']}<br><br>"
+        
+        if not (row["observation"] in ['None', None, ''] or pd.isna(row['observation'])):
+            record += f"Observações: {row['observation']}<br><br>"
+    
+    return record
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -27,14 +56,22 @@ HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/records_file.xlsx')
-record_path = glob.glob(f'{path_file}/records.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/records_recipes.csv')
+record_path = glob.glob(f'{path_file}/records.csv')
 
-df = pd.read_excel(todos_arquivos[0])
+df = pd.read_csv(todos_arquivos[0])
 df = df.replace('None', '')
 
-df_records = pd.read_excel(record_path[0])
-df_records = df_records.replace('None', '')
+df_record = pd.read_csv(record_path[0])
+df_record = df_record.replace('None', '')
+
+record_lookup = {}
+for _, row in df_record.iterrows():
+    record_id = verify_nan(row['id'])
+    if record_id == "":
+        continue
+    record_id = int(record_id)
+    record_lookup[record_id] = row['patient_id']
 
 log_folder = path_file
 
@@ -42,21 +79,23 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont=0
+inserted_cont = 0
 not_inserted_data = []
 not_inserted_cont = 0
 
-record_lookup = {row['id']: row['patient_id'] for _, row in df_records.iterrows()}
+for idx, row in df.iterrows():
 
-for _, row in df.iterrows():
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    record_id = row['id']
-    if record_id is None or record_id == "":
+    record_id = verify_nan(row['id'])
+    if record_id == "":
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Histórico é vazio ou nulo'
         not_inserted_data.append(row_dict)
         continue
+    record_id = int(record_id)
 
     existing_record = exists(session, record_id, "Id do Histórico", HistoricoClientes)
     if existing_record:
@@ -66,37 +105,29 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = row["patient_id"]
-    if id_patient == "" or id_patient == None or id_patient == 'None' or pd.isna(id_patient):
-        if row['record_id'] in record_lookup:
-            id_patient = record_lookup[row['record_id']]
-        else:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id do paciente vazio e não encontrado no arquivo records.xlsx'
-            not_inserted_data.append(row_dict)
-            continue
-    
-    record = row['name']
+    id_record = verify_nan(row['record_id'])
+    if id_record == "":
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'O campo record_id está vazio ou nulo'
+        not_inserted_data.append(row_dict)
+        continue
+    id_record = int(id_record)
+
+    if id_record in record_lookup:
+        id_patient = record_lookup[id_record]
+    else:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente não encontrado para o record_id fornecido'
+        not_inserted_data.append(row_dict)
+        continue
+
+    record = get_record(row)
     if record == "":
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico vazio'
-        not_inserted_data.append(row_dict)
-        continue
-    
-    classe_url = row['url']
-    if classe_url is None or classe_url == "":
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Classe é vazia ou nula'
-        not_inserted_data.append(row_dict)
-        continue
-
-    if len(classe_url) > 100:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Classe excede o tamanho máximo de 100 caracteres'
         not_inserted_data.append(row_dict)
         continue
 
@@ -107,15 +138,14 @@ for _, row in df.iterrows():
         else:
             date = '01/01/1900 00:00'
     else:
-        if is_valid_date(row['created_at'], '%d-%m-%Y %H:%M:%S'):
+        if is_valid_date(row['created_at'], '%Y-%m-%d %H:%M:%S'):
             date = row['created_at']
         else:
             date = '01/01/1900 00:00'
 
     new_record = HistoricoClientes(
         Histórico = record,
-        Data = date,
-        Classe = classe_url
+        Data = date
     )
 
     setattr(new_record, "Id do Histórico", record_id)
@@ -127,13 +157,12 @@ for _, row in df.iterrows():
         "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
-        "Classe": classe_url,
         "Id do Usuário": 0,
     })
     session.add(new_record)
     inserted_cont+=1
 
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()
@@ -144,5 +173,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_file.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_file.xlsx")
+create_log(log_data, log_folder, "log_inserted_records_recipes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_records_recipes.xlsx")

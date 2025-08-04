@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-from utils.utils import create_log, is_valid_date, exists
+from utils.utils import create_log, is_valid_date, exists, verify_nan
 import glob
 
 def get_record(row):
@@ -75,12 +75,28 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-record_lookup = {row['id']: row['patient_id'] for _, row in df_records.iterrows()}
+record_lookup = {}
+for _, row in df_records.iterrows():
 
-for _, row in df.iterrows():
+    try:
+        int(row['id'])
+        record_lookup[row['id']] = row['patient_id']
+    except ValueError:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Histórico não é um número válido'
+        not_inserted_data.append(row_dict)
+        continue
+    
+print(record_lookup)
 
-    record_id = row['id']
-    if record_id is None or record_id == "":
+for idx, row in df.iterrows():
+
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
+
+    record_id = verify_nan(row['id'])
+    if record_id == "":
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Histórico é vazio ou nulo'
@@ -95,16 +111,14 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = record_lookup.get(row['record_id'], "")
-    if id_patient == "" or id_patient == None or id_patient == 'None' or pd.isna(id_patient):
-        if record_id in record_lookup:
-            id_patient = record_lookup[record_id]
-        else:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id do paciente vazio e não encontrado no arquivo records.xlsx'
-            not_inserted_data.append(row_dict)
-            continue
+    try:
+        id_patient = record_lookup[row['record_id']]
+    except KeyError:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente vazio e não encontrado no arquivo records.xlsx'
+        not_inserted_data.append(row_dict)
+        continue
     
     record = get_record(row)
     if record == "":
@@ -145,7 +159,7 @@ for _, row in df.iterrows():
     session.add(new_record)
     inserted_cont+=1
 
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()

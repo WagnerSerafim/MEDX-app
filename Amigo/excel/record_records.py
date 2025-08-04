@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log
+from utils.utils import is_valid_date, exists, create_log, verify_nan
 
 def get_info(json_str, record):
     message = ""  
@@ -114,8 +114,8 @@ not_inserted_cont = 0
 
 for _, row in df.iterrows():
 
-    record_id = row['id']
-    if record_id is None or record_id == "":
+    record_id = verify_nan(row['id'])
+    if record_id == "":
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Histórico é vazio ou nulo'
@@ -130,8 +130,8 @@ for _, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = row["patient_id"]
-    if id_patient == "" or id_patient == None or id_patient == 'None':
+    id_patient = verify_nan(row['patient_id'])
+    if id_patient == "":
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do paciente vazio'
@@ -180,7 +180,7 @@ for _, row in df.iterrows():
     session.add(new_record)
     inserted_cont+=1
 
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()
