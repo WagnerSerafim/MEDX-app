@@ -48,7 +48,7 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df.iterrows():
+for idx, row in df.iterrows():
 
     if row['id'] in [None, '', 'None']:
         not_inserted_cont += 1
@@ -149,8 +149,12 @@ for _, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+
+    if inserted_cont % 1000 == 0:
         session.commit()
+
+    if (idx) % 1000 == 0 or (idx) == len(df):
+        print(f"Processados {idx} de {len(df)} registros ({(idx) / len(df) * 100:.2f}%)")
 
 session.commit()
 
