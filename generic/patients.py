@@ -3,11 +3,9 @@ import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from datetime import datetime
 import pandas as pd
 import urllib
 from utils.utils import *
-import math
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -60,7 +58,7 @@ for _, row in df.iterrows():
             not_inserted_data.append(row_dict)
             continue
 
-        existing_patient = session.query(Contatos).filter(getattr(Contatos, "Id do Cliente")==row["ID"]).first()
+        existing_patient = session.query(Contatos).filter(getattr(Contatos, "Referências")==row["ID"]).first()
         if existing_patient:
             not_inserted_cont +=1
             row_dict = row.to_dict()
@@ -72,7 +70,7 @@ for _, row in df.iterrows():
     else:
         count_id += 1
         id_patient = count_id
-        existing_patient = session.query(Contatos).filter(getattr(Contatos, "Id do Cliente")==id_patient).first()
+        existing_patient = session.query(Contatos).filter(getattr(Contatos, "Referências")==id_patient).first()
         if existing_patient:
             not_inserted_cont += 1
             row_dict = row.to_dict()
@@ -81,7 +79,7 @@ for _, row in df.iterrows():
             continue
 
     if 'NASCIMENTO' in df.columns:
-        if is_valid_date(str(row['NASCIMENTO']), '%Y-%m-%d %H:%M:%S'):
+        if is_valid_date(str(row['NASCIMENTO']), '%Y-%m-%d'):
             birthday = str(row['NASCIMENTO'])
         else:
             birthday = '1900-01-01'
@@ -94,16 +92,16 @@ for _, row in df.iterrows():
     else:
         sex = "M"
 
-    if 'NUMERO' in df.columns and 'ENDERECO' in df.columns:
-        if row["NUMERO"] in [None, '', 'None']:
-            address = row["ENDERECO"]
-        else:
-            number = str(row["NUMERO"]) 
-            address = f"{row['ENDERECO']} {number}"
-    elif 'ENDERECO' in df.columns:
-        address = row["ENDERECO"]
-    else:
-        address = ''
+    # if 'NUMERO' in df.columns and 'ENDERECO' in df.columns:
+    #     if row["NUMERO"] in [None, '', 'None']:
+    #         address = row["ENDERECO"]
+    #     else:
+    #         number = str(row["NUMERO"]) 
+    #         address = f"{row['ENDERECO']} {number}"
+    # elif 'ENDERECO' in df.columns:
+    #     address = row["ENDERECO"]
+    # else:
+    #     address = ''
 
     if row['NOME'] in [None, '', 'None'] or pd.isna(row['NOME']):
         not_inserted_cont += 1
@@ -144,7 +142,7 @@ for _, row in df.iterrows():
     insurance = clean_value(verify_column_exists("CONVENIO", df, row))
 
     observation = clean_value(verify_column_exists("OBSERVACOES", df, row))
-    address = truncate_value(clean_value(address), 50)
+    # address = truncate_value(clean_value(address), 50)
 
     new_patient = Contatos(
         Nome=name,
@@ -154,10 +152,10 @@ for _, row in df.iterrows():
         Email=email,
     )
 
-    setattr(new_patient, "Id do Cliente", clean_value(id_patient))
+    setattr(new_patient, "Referências", id_patient)
     setattr(new_patient, "CPF/CGC", cpf)
     setattr(new_patient, "Cep Residencial", cep)
-    setattr(new_patient, "Endereço Residencial", address)
+    # setattr(new_patient, "Endereço Residencial", address)
     setattr(new_patient, "Endereço Comercial", complement)
     setattr(new_patient, "Bairro Residencial", neighbourhood)
     setattr(new_patient, "Cidade Residencial", city)
@@ -169,7 +167,7 @@ for _, row in df.iterrows():
     setattr(new_patient, "Observações", observation)
     
     log_data.append({
-        "Id do Cliente": id_patient,
+        "Referências": id_patient,
         "Nome": name,
         "Nascimento": birthday,
         "Sexo": sex,
@@ -182,7 +180,7 @@ for _, row in df.iterrows():
         "Celular": cellphone,
         "Email": email,
         "Cep Residencial": cep,
-        "Endereço Residencial": address,
+        # "Endereço Residencial": address,
         "Endereço Comercial": complement,
         "Bairro Residencial": neighbourhood,
         "Cidade Residencial": city,
@@ -192,7 +190,7 @@ for _, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()
