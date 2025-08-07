@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -43,16 +43,11 @@ not_inserted_data = []
 not_inserted_cont = 0
 
 for idx, row in df.iterrows():
+    
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    existing_record = exists(session, row['CODIGO'], "Id do Cliente", Contatos)
-    if existing_record:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente já existe'
-        not_inserted_data.append(row_dict)
-        continue
-
-    if row['CODIGO'] == None or row['CODIGO'] == '' or row['CODIGO'] == 'None':
+    if row['CODIGO'] in [None, '', 'NULL', 'None']:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente vazio'
@@ -60,6 +55,15 @@ for idx, row in df.iterrows():
         continue
     else:
         id_patient = row['CODIGO']
+
+    existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
+    if existing_record:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Cliente já existe'
+        not_inserted_data.append(row_dict)
+        continue
+
     
     if row['NOME'] == None or row['NOME'] == '' or row['NOME'] == 'None':
         not_inserted_cont +=1
@@ -81,15 +85,15 @@ for idx, row in df.iterrows():
         sex = 'M'
     
 
-    email = row['EMAIL']
-    cpf = row['CPF']
-    rg = row['RG']
+    email = verify_nan(row['EMAIL'])
+    cpf = verify_nan(row['CPF'])
+    rg = verify_nan(row['RG'])
     telephone = ''
-    cellphone = row['TELEFONE']
-    cep = row['CEP']
+    cellphone = verify_nan(row['TELEFONE'])
+    cep = verify_nan(row['CEP'])
     complement = ''
-    neighbourhood = row['BAIRRO']
-    city = row['CIDADE']
+    neighbourhood = verify_nan(row['BAIRRO'])
+    city = verify_nan(row['CIDADE'])
     state = ''
     occupation = ''
     mother = ''
@@ -97,7 +101,7 @@ for idx, row in df.iterrows():
     observation = ''
 
 
-    address = row['RUA']
+    address = verify_nan(row['RUA'])
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -147,9 +151,6 @@ for idx, row in df.iterrows():
     inserted_cont+=1
     if inserted_cont % 1000 == 0:
         session.commit()
-
-    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df):
-        print(f"Processados {idx + 1} de {len(df)} registros ({(idx + 1) / len(df) * 100:.2f}%)")
 
 session.commit()
 
