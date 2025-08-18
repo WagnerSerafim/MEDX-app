@@ -34,7 +34,7 @@ except Exception as e:
 print("Sucesso! Começando migração de pacientes...")
 
 excel_file = glob.glob(f'{path_file}/patients.xlsx')
-df = pd.read_excel(excel_file[0])
+df = pd.read_excel(r"E:\Migracoes\Schema_35364_simplifica_gestao\segunda\patients.xlsx")
 df = df.replace('None', '')
 
 log_folder = path_file
@@ -58,7 +58,7 @@ for _, row in df.iterrows():
             not_inserted_data.append(row_dict)
             continue
 
-        existing_patient = session.query(Contatos).filter(getattr(Contatos, "Referências")==row["ID"]).first()
+        existing_patient = exists(session, row['ID'], "Referências", Contatos)
         if existing_patient:
             not_inserted_cont +=1
             row_dict = row.to_dict()
@@ -92,16 +92,16 @@ for _, row in df.iterrows():
     else:
         sex = "M"
 
-    # if 'NUMERO' in df.columns and 'ENDERECO' in df.columns:
-    #     if row["NUMERO"] in [None, '', 'None']:
-    #         address = row["ENDERECO"]
-    #     else:
-    #         number = str(row["NUMERO"]) 
-    #         address = f"{row['ENDERECO']} {number}"
-    # elif 'ENDERECO' in df.columns:
-    #     address = row["ENDERECO"]
-    # else:
-    #     address = ''
+    if 'NUMERO' in df.columns and 'ENDERECO' in df.columns:
+        if row["NUMERO"] in [None, '', 'None']:
+            address = row["ENDERECO"]
+        else:
+            number = str(row["NUMERO"]) 
+            address = f"{row['ENDERECO']} {number}"
+    elif 'ENDERECO' in df.columns:
+        address = row["ENDERECO"]
+    else:
+        address = ''
 
     if row['NOME'] in [None, '', 'None'] or pd.isna(row['NOME']):
         not_inserted_cont += 1
@@ -142,7 +142,7 @@ for _, row in df.iterrows():
     insurance = clean_value(verify_column_exists("CONVENIO", df, row))
 
     observation = clean_value(verify_column_exists("OBSERVACOES", df, row))
-    # address = truncate_value(clean_value(address), 50)
+    address = truncate_value(clean_value(address), 50)
 
     new_patient = Contatos(
         Nome=name,
@@ -155,7 +155,7 @@ for _, row in df.iterrows():
     setattr(new_patient, "Referências", id_patient)
     setattr(new_patient, "CPF/CGC", cpf)
     setattr(new_patient, "Cep Residencial", cep)
-    # setattr(new_patient, "Endereço Residencial", address)
+    setattr(new_patient, "Endereço Residencial", address)
     setattr(new_patient, "Endereço Comercial", complement)
     setattr(new_patient, "Bairro Residencial", neighbourhood)
     setattr(new_patient, "Cidade Residencial", city)
@@ -180,7 +180,7 @@ for _, row in df.iterrows():
         "Celular": cellphone,
         "Email": email,
         "Cep Residencial": cep,
-        # "Endereço Residencial": address,
+        "Endereço Residencial": address,
         "Endereço Comercial": complement,
         "Bairro Residencial": neighbourhood,
         "Cidade Residencial": city,

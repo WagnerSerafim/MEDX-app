@@ -10,17 +10,17 @@ from utils.utils import is_valid_date, exists, create_log, verify_nan
 from striprtf.striprtf import rtf_to_text
 
 
-def get_record(row):
-    """
-    A partir da linha do dataframe, retorna o histórico formatado.
-    """
-    try:
-        record = rtf_to_text(row['texto'])
-        record = record.replace('_x000D_', '')
-    except:
-        return ''
+# def get_record(row):
+#     """
+#     A partir da linha do dataframe, retorna o histórico formatado.
+#     """
+#     try:
+#         record = rtf_to_text(row['texto'])
+#         record = record.replace('_x000D_', '')
+#     except:
+#         return ''
     
-    return record
+#     return record
 
 
 sid = input("Informe o SoftwareID: ")
@@ -45,7 +45,7 @@ print("Sucesso! Inicializando migração de Históricos...")
 
 todos_arquivos = glob.glob(f'{path_file}/dados*.xlsx')
 
-df = pd.read_excel(todos_arquivos[0], sheet_name='t_pacientesevolucoes')
+df = pd.read_excel(todos_arquivos[0], sheet_name='t_pacientesevolucoes3')
 df = df.replace('None', '')
 
 log_folder = path_file
@@ -81,13 +81,14 @@ for idx, row in df.iterrows():
     else:
         id_record = id_record
 
-    record = get_record(row)
+    record = verify_nan(row['texto'])
     if record == "":
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico vazio ou inválido'
         not_inserted_data.append(row_dict)
         continue
+    record = record.replace('_x000D_', '')
 
     if is_valid_date(row['data'], '%d-%m-%Y %H:%M:%S'):
         date = row['data']
@@ -131,5 +132,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_evolucoes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_evolucoes.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_evolucoes3.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_evolucoes3.xlsx")

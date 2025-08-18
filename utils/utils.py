@@ -76,7 +76,7 @@ def verify_column_exists(column_name, df, row):
 
 def clean_value(value):
     # Converte 'nan', '', None, numpy.nan para None
-    if value in [None, '', 'None']:
+    if value in [None, '', 'None'] or pd.isna(value):
         return None
     try:
         if isinstance(value, float) and math.isnan(value):
