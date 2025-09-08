@@ -1,3 +1,4 @@
+from datetime import datetime
 import glob
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -5,16 +6,21 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log
+from utils.utils import is_valid_date, exists, create_log, verify_nan
 
 def get_record(row):
     """A partir da linha do dataframe, retorna o histórico formatado"""
     record = ''
-    if not (row['tipo_informacao'] == '' or row['tipo_informacao'] == None):
+    type_info = verify_nan(row['tipo_informacao'])
+    resume_content = verify_nan(row['conteudo_resumo'])
+
+    if not type_info in [None, '', 'None']:
         record += f'Tipo de histórico: {row["tipo_informacao"]}<br><br>'
 
-    if not (row['conteudo_resumo'] == '' or row['conteudo_resumo'] == None):
+    if not resume_content in [None, '', 'None']:
         record += f'Conteúdo do histórico: {row["conteudo_resumo"]}<br><br>'
+    else:
+        record = ''
 
     return record
 
@@ -60,7 +66,20 @@ not_inserted_cont = 0
 
 for idx, row in df_main.iterrows():
 
-    existing_record = exists(session, row['id'], "Id do Histórico", HistoricoClientes)
+
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
+
+    id_record = verify_nan(row['id'])
+    if id_record in [None, '', 'None']:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Histórico vazio'
+        row_dict['TimeStamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        not_inserted_data.append(row_dict)
+        continue
+
+    existing_record = exists(session, id_record, "Id do Histórico", HistoricoClientes)
     if existing_record:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -78,7 +97,7 @@ for idx, row in df_main.iterrows():
 
     record = record.replace('_x000D_', ' ')
 
-    id_patient = row['paciente_id']
+    id_patient = verify_nan(row['paciente_id'])
     if id_patient == "" or id_patient == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -86,7 +105,6 @@ for idx, row in df_main.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    # Validação para data_hora
     data_hora = str(row['data_hora']) if row['data_hora'] is not None else ""
     if is_valid_date(data_hora, '%Y-%m-%d %H:%M:%S'):
         date = data_hora
@@ -94,7 +112,7 @@ for idx, row in df_main.iterrows():
         date = data_hora + ' 00:00:00'
     else:
         date = '01/01/1900 00:00'
-
+ 
     new_record = HistoricoClientes(
         Histórico=record,
         Data=date
@@ -111,14 +129,13 @@ for idx, row in df_main.iterrows():
         "Id do Usuário": 0,
     })
     inserted_cont+=1
+
+    
     session.add(new_record)
 
     if inserted_cont % 1000 == 0:
         session.commit()
-
-    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df_main):
-        print(f"Processados {idx + 1} de {len(df_main)} registros ({(idx + 1) / len(df_main) * 100:.2f}%)")
-
+    
 session.commit()
 
 print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")

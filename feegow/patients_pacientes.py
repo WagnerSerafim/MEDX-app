@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -44,6 +44,9 @@ not_inserted_cont = 0
 
 for idx, row in df.iterrows():
 
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
+
     existing_record = exists(session, row['id'], "Id do Cliente", Contatos)
     if existing_record:
         not_inserted_cont +=1
@@ -52,7 +55,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    if row["id"] == None or row["id"] == '' or row["id"] == 'None':
+    if row["id"] in [None, '', 'None'] or pd.isna(row["id"]):
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente vazio'
@@ -61,7 +64,7 @@ for idx, row in df.iterrows():
     else:
         id_patient = row["id"]
     
-    if row['nome_paciente'] == None or row['nome_paciente'] == '' or row['nome_paciente'] == 'None':
+    if row['nome_paciente'] in [None, '', 'None'] or pd.isna(row['nome_paciente']):
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Nome do Paciente vazio'
@@ -81,20 +84,20 @@ for idx, row in df.iterrows():
         sex = 'M'
     
 
-    email = row['email']
-    cpf = row['cpf']
-    rg = row['Documento']
-    telephone = row['fixo_1']
-    cellphone = row['celular']
+    email = verify_nan(row['email'])
+    cpf = verify_nan(row['cpf'])
+    rg = verify_nan(row['Documento'])
+    telephone = verify_nan(row['fixo_1'])
+    cellphone = verify_nan(row['celular'])
     cep = None
     complement = None
     neighbourhood = None
     city = None
     state = None
-    occupation = row['profissao']
+    occupation = verify_nan(row['profissao'])
     mother = None
     father = None
-    observation = row['Observacoes']
+    observation = verify_nan(row['Observacoes'])
 
 
     address = None
@@ -145,11 +148,8 @@ for idx, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
-
-    if (idx + 1) % 1000 == 0 or (idx + 1) == len(df):
-        print(f"Processados {idx + 1} de {len(df)} registros ({(idx + 1) / len(df) * 100:.2f}%)")
 
 session.commit()
 
