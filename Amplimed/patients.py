@@ -111,6 +111,8 @@ for row in json_data:
     telephone = row['telf'] if not pd.isna(row['telf']) else ''
     cellphone = row['celular'] if not pd.isna(row['celular']) else ''
     observation = row['obs'] if not pd.isna(row['obs']) else ''
+    if observation in ['<br>', 'br']:
+        observation = ''
     marital_status = row['estadoci'] if not pd.isna(row['estadoci']) else ''
     occupation = row['profis'] if not pd.isna(row['profis']) else ''
     address = f"{row['endereco']} {row['numero'] if not pd.isna(row['numero']) else ''}" if not pd.isna(row['endereco']) else ''

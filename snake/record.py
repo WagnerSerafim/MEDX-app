@@ -6,39 +6,9 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import pandas as pd
 import urllib
-from utils.utils import create_log, is_valid_date, exists
-import json
-
-def get_record(json_info):
-    record = ''
-    try:
-        json_data = json.loads(json_info)
-
-        for item in json_data:
-            if item['nome'] in ['Gestante?', 'Tabagista?', 'Possui diabetes?', 'Possui hipertensão?', 'Utiliza marcapasso?',
-                                'Possui alterações hormonais ou na tireóide?', 'Possui doença hepática?', 'Utiliza filtro solar diariamente?',
-                                'Utiliza medicamentos contínuos?', 'Já fez cirurgia?', 'Realiza atividade física regular?']:
-                record += f"{item['nome']}:<br>{'Sim' if item['conteudo'] == 1 else 'Não'}<br><br>"
-            
-            elif item['nome'] in ['Patologias cutâneas?']:
-                patologies = ['Psoríase', 'Vitiligo', 'Lupus', 'Ros', 'Outro']
-                try:
-                    patology_id = int(item['conteudo']) - 1
-                except ValueError:
-                    patology_id = int(item['conteudo'][6:7]) - 1
-                record += f'{item["nome"]}:<br>{patologies[patology_id]}<br><br>'
-            else:
-                if not item['nome'] == 'Tipo de hiperpigmentação periocular':
-                    record += f'{item["nome"]}:<br>{item["conteudo"]}<br><br>'
-            
-    except json.JSONDecodeError:
-        record = ''
-
-    if record:
-        record = record.replace('_x000D_','')
-
-    return record
-
+from utils.utils import create_log, exists, verify_nan, parse_us_datetime_to_sql
+from datetime import datetime
+    
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
@@ -55,14 +25,12 @@ SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
-Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/dados*.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/evolucaoclinica*.xlsx')
 
-df = pd.read_excel(todos_arquivos[0], sheet_name='atendimentos-prontuarios')
-df = df.replace('None', '')
+df = pd.read_excel(todos_arquivos[0])
 
 log_folder = path_file
 
@@ -75,29 +43,46 @@ not_inserted_data = []
 not_inserted_cont = 0
 
 for idx, row in df.iterrows():
-
+    
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    patient = exists(session, row['PACIENTE'], "Nome", Contatos)
-    if not patient:
-        not_inserted_cont +=1
+    id_record = verify_nan(row['IdEvolucaoClinica'])
+    if id_record in ['', None]:
+        not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Paciente não existe no banco de dados'
+        row_dict['Motivo'] = 'IdEvolucaoClinica vazio'
+        row_dict['TimeStamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         not_inserted_data.append(row_dict)
         continue
-    else:
-        id_patient = getattr(patient, "Id do Cliente")
-    
-    record = get_record(row['HISTORICO'])
-    if record == '':
+
+    existing_record = exists(session, id_record, "Id do Histórico", HistoricoClientes)
+    if existing_record:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = f'Evolução Clínica com Id {id_record} já existe'
+        row_dict['TimeStamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        not_inserted_data.append(row_dict)
+        continue
+
+    id_patient = verify_nan(row['IdPaciente'])
+    if id_patient in ['', None]:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'IdPaciente vazio'
+        row_dict['TimeStamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        not_inserted_data.append(row_dict)
+        continue
+
+    record  = verify_nan(row['Evolucao'])
+    if record in [None, '', 'None'] or pd.isna(record):
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico vazio'
         not_inserted_data.append(row_dict)
         continue
 
-    date = row['DATA']
+    date = parse_us_datetime_to_sql(row['DataInclusao'])
 
     new_record = HistoricoClientes(
         Histórico = record,
@@ -116,7 +101,7 @@ for idx, row in df.iterrows():
     session.add(new_record)
     inserted_cont+=1
 
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()
@@ -127,5 +112,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_evolucaoclinica.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_evolucaoclinica.xlsx")

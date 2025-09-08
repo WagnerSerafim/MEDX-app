@@ -88,72 +88,67 @@ for _, row in df.iterrows():
         sex = 'M'
 
     if pd.isna(row['email']):
-        email = ''
+        email = None
     else:
         email = row['email']
 
     if pd.isna(row['document']):
-        cpf = ''
+        cpf = None
     else:
         cpf = row['document']
 
     if pd.isna(row['additional phone']):
-        telephone = ''
+        telephone = None
     else:
         telephone = row['additional phone']
 
     if pd.isna(row['phone']):
-        cellphone = ''
+        cellphone = None
     else:
         cellphone = row['phone']
         cellphone = cellphone.replace("'","")
 
     if pd.isna(row['observations']):
-        observation = ''
+        observation = None
     else:
         observation = row['observations']
 
     if pd.isna(row['marital status']):
-        marital_status = ''
+        marital_status = None
     else:
         marital_status = row['marital status']
         if marital_status == 'Undefined':
             marital_status = 'Indefinido'
 
     if pd.isna(row['profession']):
-        occupation = ''
+        occupation = None
     else:
         occupation = row['profession']
 
     if pd.isna(row['address street']):
-        address = ''
+        address = None
     else:
         address = f'{row['address street']} {row['address number'] if not pd.isna(row['address number']) else ''}'
 
     if pd.isna(row['address postal code']):
-        cep = ''
+        cep = None
     else:
         cep = row['address postal code']
     
     if pd.isna(row['address neighbordhood']):
-        neighbourhood = ''
+        neighbourhood = None
     else:
         neighbourhood = row['address neighbordhood']
 
     if pd.isna(row['address city']):
-        city = ''
+        city = None
     else:
         city = row['address city']
 
-    if pd.isna(row['address state']):
-        state = ''
-    else:
-        state = row['address state']
-
-    rg = ''
-    complement = ''
-    mother = ''
-    father = ''
+    rg = None
+    complement = None
+    mother = None
+    father = None
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -170,7 +165,6 @@ for _, row in df.iterrows():
     setattr(new_patient, "Endereço Comercial", truncate_value(complement, 50))
     setattr(new_patient, "Bairro Residencial", truncate_value(neighbourhood, 25))
     setattr(new_patient, "Cidade Residencial", truncate_value(city, 25))
-    setattr(new_patient, "Estado Residencial", truncate_value(state, 2))
     setattr(new_patient, "Telefone Residencial", truncate_value(telephone, 25))
     setattr(new_patient, "Profissão", truncate_value(occupation, 25))
     setattr(new_patient, "Pai", truncate_value(father, 50))
@@ -198,7 +192,6 @@ for _, row in df.iterrows():
         "Endereço Comercial": truncate_value(complement, 50),
         "Bairro Residencial": truncate_value(neighbourhood, 25),
         "Cidade Residencial": city,
-        "Estado Residencial": state,
         "Observações": observation,
         "Estado Civil": marital_status,
         "TimeStamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")

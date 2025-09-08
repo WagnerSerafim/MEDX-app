@@ -4,6 +4,15 @@ import re
 import pandas as pd
 import math
 
+def parse_us_datetime_to_sql(date_str):
+    if pd.isna(date_str) or date_str in ['', None]:
+        return None
+    try:
+        dt = datetime.strptime(date_str, "%m/%d/%Y %I:%M:%S %p")
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
 def verify_nan(value):
     """Verifica se o valor é NaN ou None e retorna None."""
     if value in [None, '', 'None', 'nan', 'NaN', 'NAN', 'NULL', 'null'] or pd.isna(value):

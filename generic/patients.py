@@ -33,8 +33,8 @@ except Exception as e:
 
 print("Sucesso! Começando migração de pacientes...")
 
-excel_file = glob.glob(f'{path_file}/patients.xlsx')
-df = pd.read_excel(r"E:\Migracoes\Schema_35364_simplifica_gestao\segunda\patients.xlsx")
+excel_file = glob.glob(f'{path_file}/dados*.xlsx')
+df = pd.read_excel(excel_file[0], sheet_name = 'pacientes')
 df = df.replace('None', '')
 
 log_folder = path_file
@@ -46,7 +46,7 @@ log_data = []
 inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
-count_id = 0
+existId = True
 
 for _, row in df.iterrows():
 
@@ -57,29 +57,26 @@ for _, row in df.iterrows():
             row_dict['Motivo'] = 'Id do Cliente vazio'
             not_inserted_data.append(row_dict)
             continue
-
-        existing_patient = exists(session, row['ID'], "Referências", Contatos)
+        # Só permite IDs numéricos
+        if not str(row['ID']).isdigit():
+            not_inserted_cont += 1
+            row_dict = row.to_dict()
+            row_dict['Motivo'] = 'Id do Cliente não é numérico'
+            not_inserted_data.append(row_dict)
+            continue
+        id_patient = int(row["ID"])
+        existing_patient = exists(session, id_patient, "Id do Cliente", Contatos)
         if existing_patient:
             not_inserted_cont +=1
             row_dict = row.to_dict()
             row_dict['Motivo'] = 'Id do Cliente já existe no Banco de Dados'
             not_inserted_data.append(row_dict)
             continue
-        else: 
-            id_patient = row["ID"]
     else:
-        count_id += 1
-        id_patient = count_id
-        existing_patient = session.query(Contatos).filter(getattr(Contatos, "Referências")==id_patient).first()
-        if existing_patient:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id do Cliente já existe no Banco de Dados'
-            not_inserted_data.append(row_dict)
-            continue
+        existId = False
 
     if 'NASCIMENTO' in df.columns:
-        if is_valid_date(str(row['NASCIMENTO']), '%Y-%m-%d'):
+        if is_valid_date(str(row['NASCIMENTO']), '%Y-%m-%d %H:%M:%S'):
             birthday = str(row['NASCIMENTO'])
         else:
             birthday = '1900-01-01'
@@ -139,8 +136,6 @@ for _, row in df.iterrows():
 
     insurance = clean_value(verify_column_exists("CONVENIO", df, row))
 
-    insurance = clean_value(verify_column_exists("CONVENIO", df, row))
-
     observation = clean_value(verify_column_exists("OBSERVACOES", df, row))
     address = truncate_value(clean_value(address), 50)
 
@@ -152,7 +147,9 @@ for _, row in df.iterrows():
         Email=email,
     )
 
-    setattr(new_patient, "Referências", id_patient)
+    if existId:
+        setattr(new_patient, "Id do cliente", id_patient)
+        log_data.append({"Id do Cliente": id_patient})
     setattr(new_patient, "CPF/CGC", cpf)
     setattr(new_patient, "Cep Residencial", cep)
     setattr(new_patient, "Endereço Residencial", address)
@@ -167,7 +164,6 @@ for _, row in df.iterrows():
     setattr(new_patient, "Observações", observation)
     
     log_data.append({
-        "Referências": id_patient,
         "Nome": name,
         "Nascimento": birthday,
         "Sexo": sex,

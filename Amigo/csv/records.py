@@ -55,6 +55,9 @@ def get_info(json_str, record):
             
         if json_str.get("134871"):
             record += f"Informações Extras:{json_str['134871']}<br>"
+        
+        if json_str.get("199537"):
+            record += f"Informações Extras:{json_str['199537']}<br>"
 
     return record, message
 
@@ -101,7 +104,7 @@ print("Sucesso! Inicializando migração de Históricos...")
 csv.field_size_limit(10000000000000)
 todos_arquivos = glob.glob(f'{path_file}/records.csv')
 
-df = pd.read_csv(todos_arquivos[0])
+df = pd.read_csv(todos_arquivos[0], sep=',')
 df = df.replace('None', '')
 
 log_folder = path_file
