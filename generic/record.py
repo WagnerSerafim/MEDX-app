@@ -59,9 +59,9 @@ Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/dados*.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/planilha_historicos.xlsx')
 
-df = pd.read_excel(todos_arquivos[0], sheet_name='atendimentos-prontuarios')
+df = pd.read_excel(todos_arquivos[0])
 df = df.replace('None', '')
 
 log_folder = path_file
@@ -79,17 +79,9 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    patient = exists(session, row['PACIENTE'], "Nome", Contatos)
-    if not patient:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Paciente não existe no banco de dados'
-        not_inserted_data.append(row_dict)
-        continue
-    else:
-        id_patient = getattr(patient, "Id do Cliente")
+    id_patient = row['ID_PACIENTE']
     
-    record = get_record(row['HISTORICO'])
+    record = row['HISTORICO']
     if record == '':
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -99,9 +91,19 @@ for idx, row in df.iterrows():
 
     date = row['DATA']
 
+    classe = row['CLASSE']
+    existing_class = exists(session, classe, "Classe", HistoricoClientes)
+    if existing_class:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Histórico vazio'
+        not_inserted_data.append(row_dict)
+        continue
+
     new_record = HistoricoClientes(
         Histórico = record,
-        Data = date
+        Data = date,
+        Classe = classe
     )
 
     setattr(new_record, "Id do Cliente", id_patient)
@@ -111,6 +113,7 @@ for idx, row in df.iterrows():
         "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
+        "Classe": classe,
         "Id do Usuário": 0,
     })
     session.add(new_record)

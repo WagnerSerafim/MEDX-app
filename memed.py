@@ -74,7 +74,7 @@ HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/prescricoesmemed.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/prescricoesmemed*.xlsx')
 
 df = pd.read_excel(todos_arquivos[0])
 df = df.replace('None', '')

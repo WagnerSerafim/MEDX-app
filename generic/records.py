@@ -46,7 +46,7 @@ not_inserted_cont = 0
 count_id = 1
 for idx, row in df.iterrows():
 
-    if idx % 1000 == 0 or idx == len(df):
+    if idx % 500 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     if 'ID' in df.columns:
@@ -75,26 +75,27 @@ for idx, row in df.iterrows():
         continue
         
     
-    if 'DATA' in df.columns:
-        if isinstance(row['DATA'], datetime):
-            date_obj = row['DATA'].strftime('%Y-%m-%d %H:%M:%S')
-            date_str = f'{date_obj[:10]} {row['HORA']}'
-            if is_valid_date(date_str, '%Y-%m-%d %H:%M'):
-                date = date_str
-            else:
-                date = '1900-01-01'
-        else:
-            date_str = row['DATA'][:10]  
-            if is_valid_date(date_str, '%Y-%m-%d'):
-                date = f'{date_str} {row['HORA']}'
-            else:
-                not_inserted_cont +=1
-                row_dict = row.to_dict()
-                row_dict['Motivo'] = 'Data inválida'
-                not_inserted_data.append(row_dict)
-                continue
-    else:
-        date = '1900-01-01 00:00'
+    # if 'DATA' in df.columns:
+    #     if isinstance(row['DATA'], datetime):
+    #         date_obj = row['DATA'].strftime('%Y-%m-%d %H:%M:%S')
+    #         date_str = f'{date_obj[:10]} {row['HORA']}'
+    #         if is_valid_date(date_str, '%Y-%m-%d %H:%M'):
+    #             date = date_str
+    #         else:
+    #             date = '1900-01-01'
+    #     else:
+    #         date_str = row['DATA'][:10]  
+    #         if is_valid_date(date_str, '%Y-%m-%d'):
+    #             date = f'{date_str} {row['HORA']}'
+    #         else:
+    #             not_inserted_cont +=1
+    #             row_dict = row.to_dict()
+    #             row_dict['Motivo'] = 'Data inválida'
+    #             not_inserted_data.append(row_dict)
+    #             continue
+    # else:
+    #     date = '1900-01-01 00:00'
+    date = row['DATA']
 
     id_patient = row["PACIENTEID"]
     if id_patient == "" or id_patient == None or id_patient == 'None':
@@ -123,7 +124,7 @@ for idx, row in df.iterrows():
     session.add(new_record)
     inserted_cont+=1
 
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 500 == 0:
         session.commit()
 
 session.commit()

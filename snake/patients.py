@@ -106,15 +106,31 @@ for idx, row in df.iterrows():
         name = truncate_value(row["Nome"], 50)
     
         
-    rg = truncate_value(clean_value(row["RG"]), 25)
+    rg = truncate_value(clean_value(str(row["RG"])), 25)
+    if rg not in [None, '', 'None']:
+        rg = str(rg).replace('.0', '').zfill(8)
+    else:
+        rg = ''
 
-    cpf = truncate_value(clean_value(row["CpfCnpj"]), 25)
+    cpf = truncate_value(verify_nan(row['CpfCnpj']), 10)
+    if cpf not in [None, '', 'None']:
+        cpf = str(cpf).replace('.0', '').zfill(8)
+    else:
+        cpf = ''
 
     cellphone = truncate_value(clean_value(row["Telefone1"]), 25)
+    if cellphone not in [None, '', 'None']:
+        cellphone = str(cellphone).replace('.0', '').zfill(8)
+    else:
+        cellphone = ''
 
     email = truncate_value(clean_value(row["Email"]), 100)
 
-    cep = truncate_value(clean_value(row["Cep"]), 10)
+    cep = truncate_value(verify_nan(row['Cep']), 10)
+    if cep not in [None, '', 'None']:
+        cep = str(cep).replace('.0', '').zfill(8)
+    else:
+        cep = ''
 
     complement = truncate_value(clean_value(row["Complemento"]), 50)
 

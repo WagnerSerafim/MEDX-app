@@ -4,6 +4,14 @@ import re
 import pandas as pd
 import math
 
+def not_inserted_log(cont, row, reason, not_inserted_data):
+    cont += 1
+    row_dict = row.to_dict()
+    row_dict['Motivo'] = reason
+    row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    not_inserted_data.append(row_dict)
+    return cont
+
 def parse_us_datetime_to_sql(date_str):
     if pd.isna(date_str) or date_str in ['', None]:
         return None

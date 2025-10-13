@@ -23,7 +23,7 @@ session = SessionLocal()
 
 HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
-patientfiles_dirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d)) and d.startswith("PatientFiles_")]
+patientfiles_dirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d)) and d.startswith("668")]
 if not patientfiles_dirs:
     print("Nenhum diretório PatientFiles_xxx encontrado no caminho informado.")
     exit(1)

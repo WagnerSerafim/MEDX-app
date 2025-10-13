@@ -13,6 +13,9 @@ sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
 path_file = input("Informe o caminho da pasta que contém os arquivos: ")
+prefix = input("Informe o número usado como prefixo para dos arquivos): ")
+
+print("Conectando no Banco de Dados...")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
@@ -64,7 +67,13 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     
-    classe = f'107_{id_patient}/{record}'
+    classe = f'{prefix}_{id_patient}/{record}'
+    if len(classe) > 100:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Caminho do arquivo muito grande (>100 caracteres)'
+        not_inserted_data.append(row_dict)
+        continue
 
     date = parse_us_datetime_to_sql(row['DataInclusao'])
 
