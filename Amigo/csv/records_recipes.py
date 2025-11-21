@@ -1,12 +1,12 @@
+import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
+from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import pandas as pd
 import urllib
-from utils.utils import create_log, is_valid_date, exists, verify_nan
-import glob
+from utils.utils import is_valid_date, exists, create_log, verify_nan
+import csv
 
 def get_record(row):
     record = ""
@@ -42,20 +42,26 @@ password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
 path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
+print("Conectando no Banco de dados...")
+
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+historico_tbl = Table("Histórico de Clientes", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Historico(Base):
+    __table__ = historico_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
-
 print("Sucesso! Inicializando migração de Históricos...")
 
+csv.field_size_limit(100000000000)
 todos_arquivos = glob.glob(f'{path_file}/records_recipes.csv')
 record_path = glob.glob(f'{path_file}/records.csv')
 
@@ -68,7 +74,7 @@ df_record = df_record.replace('None', '')
 record_lookup = {}
 for _, row in df_record.iterrows():
     record_id = verify_nan(row['id'])
-    if record_id == "":
+    if record_id == None:
         continue
     record_id = int(record_id)
     record_lookup[record_id] = row['patient_id']
@@ -89,7 +95,7 @@ for idx, row in df.iterrows():
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     record_id = verify_nan(row['id'])
-    if record_id == "":
+    if record_id == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Histórico é vazio ou nulo'
@@ -97,7 +103,7 @@ for idx, row in df.iterrows():
         continue
     record_id = int(record_id)
 
-    existing_record = exists(session, record_id, "Id do Histórico", HistoricoClientes)
+    existing_record = exists(session, record_id, "Id do Histórico", Historico)
     if existing_record:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -106,7 +112,7 @@ for idx, row in df.iterrows():
         continue
 
     id_record = verify_nan(row['record_id'])
-    if id_record == "":
+    if id_record == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'O campo record_id está vazio ou nulo'
@@ -143,11 +149,10 @@ for idx, row in df.iterrows():
         else:
             date = '01/01/1900 00:00'
 
-    new_record = HistoricoClientes(
-        Histórico = record,
-        Data = date
+    new_record = Historico(
+        Data=date,
     )
-
+    setattr(new_record, "Histórico", bindparam(None, value=record, type_=UnicodeText()))
     setattr(new_record, "Id do Histórico", record_id)
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)

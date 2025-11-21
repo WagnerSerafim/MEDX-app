@@ -3,7 +3,7 @@ import json
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine,  bindparam, UnicodeText
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log
@@ -89,12 +89,12 @@ for idx, row in df.iterrows():
         continue
     
     new_record = HistoricoClientes(
-        Histórico=record,
         Data=date
     )
     # setattr(new_record, "Id do Histórico", (row['id']))
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
+    setattr(new_record, "Histórico", bindparam(None, value=record, type_=UnicodeText()))
     
     log_data.append({
         # "Id do Histórico": (row['id']),

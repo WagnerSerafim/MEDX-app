@@ -3,6 +3,32 @@ import os
 import re
 import pandas as pd
 import math
+import urllib
+
+def connect_database():
+    sid = input("Informe o SoftwareID: ")
+    password = urllib.parse.quote_plus(input("Informe a senha: "))
+    dbase = input("Informe o DATABASE: ")
+
+def limpar_numero(valor):
+    if valor is None:
+        return None
+    valor_str = str(valor)
+    if valor_str.endswith('.0'):
+        valor_str = valor_str[:-2]
+    valor_str = valor_str.strip()
+    return valor_str
+
+def limpar_cpf(valor):
+    if valor is None:
+        return None
+    valor_str = str(valor)
+    if valor_str.endswith('.0'):
+        valor_str = valor_str[:-2]
+    valor_str = re.sub(r'\D', '', valor_str)
+    if len(valor_str) < 11 and len(valor_str) > 0:
+        valor_str = valor_str.zfill(11)
+    return valor_str if valor_str else None
 
 def not_inserted_log(cont, row, reason, not_inserted_data):
     cont += 1
@@ -23,8 +49,8 @@ def parse_us_datetime_to_sql(date_str):
 
 def verify_nan(value):
     """Verifica se o valor é NaN ou None e retorna None."""
-    if value in [None, '', 'None', 'nan', 'NaN', 'NAN', 'NULL', 'null'] or pd.isna(value):
-        return ''
+    if value in [None, '', 'None', 'nan', 'NaN', 'NAN', 'NULL', 'null', 'NUL', 'NU'] or pd.isna(value):
+        return None
     return value
 
 def exists(session, id, id_table, table):

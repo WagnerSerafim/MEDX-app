@@ -1,8 +1,7 @@
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
+from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
 import pandas as pd
 import urllib
@@ -14,20 +13,24 @@ password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
 path_file = input("Informe o caminho da pasta que contém os arquivos: ") 
 
-DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
-
 print("Conectando no Banco de dados...")
 
+DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 engine = create_engine(DATABASE_URL)
+metadata = MetaData()
+agenda_tbl = Table("Agenda", metadata, schema=f"schema_{sid}", autoload_with=engine)
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine) 
+Base = declarative_base()
+
+class Agenda(Base):
+    __table__ = agenda_tbl
+
+class Contatos(Base):
+    __table__ = contatos_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-Agenda = getattr(Base.classes, "Agenda")
-Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
@@ -48,28 +51,10 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df.iterrows():
+for idx, row in df.iterrows():
 
-    id_patient = verify_nan(row["patient_id"])
-    if id_patient == "":
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do paciente vazio ou inválido'
-        not_inserted_data.append(row_dict)
-        continue
-    id_patient = int(id_patient)
-
-    type_schedule = verify_nan(row['type'])
-    observation = verify_nan(row['observation'])
-    patient = exists(session, id_patient, "Id do Cliente", Contatos)
-    if not patient:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do paciente vinculado não existe no banco de dados'
-        not_inserted_data.append(row_dict)
-        continue
-    else:
-        description = f"{patient.Nome} {type_schedule} {observation}"
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     id_scheduling = verify_nan(row["id"])
     if id_scheduling == "":
@@ -78,15 +63,40 @@ for _, row in df.iterrows():
         row_dict['Motivo'] = 'Id do Agendamento vazio ou nulo'
         not_inserted_data.append(row_dict)
         continue
-    id_scheduling = int(id_scheduling)
 
-    exists_row = session.query(Agenda).filter(getattr(Agenda, 'Id do Agendamento') == id_scheduling).first()
+    exists_row = exists(session, id_scheduling, "Id do Agendamento", Agenda)
     if exists_row:
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id já existe no banco de dados'
         not_inserted_data.append(row_dict)
         continue
+
+    id_patient = verify_nan(row["patient_id"])
+    if id_patient == None:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente vazio ou inválido'
+        not_inserted_data.append(row_dict)
+        continue
+
+    type_schedule = verify_nan(row['type'])
+    if type_schedule == None:
+        type_schedule = ''
+
+    observation = verify_nan(row['observation'])
+    if observation == None:
+        observation = ''
+
+    patient = exists(session, id_patient, "Id do Cliente", Contatos)
+    if not patient:
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do paciente vinculado não existe no banco de dados'
+        not_inserted_data.append(row_dict)
+        continue
+    else:
+        description = f"{patient.Nome} {type_schedule} {observation}".strip()
 
     if not pd.isna(row['start_date']) and is_valid_date(row['start_date'], '%Y-%m-%d %H:%M:%S'):
         if isinstance(row['start_date'], datetime):
@@ -154,5 +164,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_scheduling_attendances.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_scheduling_attendances.xlsx")
+create_log(log_data, log_folder, "log_inserted_attendances.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_attendances.xlsx")

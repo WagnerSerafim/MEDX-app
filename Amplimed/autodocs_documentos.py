@@ -1,3 +1,5 @@
+import csv
+import glob
 import json
 import os
 from sqlalchemy.ext.automap import automap_base
@@ -5,18 +7,18 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import pandas as pd
 import urllib
-from utils.utils import create_log
+from utils.utils import create_log, verify_nan
 from datetime import datetime
 
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
-path_folder = input("Informe o caminho do arquivo: ")
+path_file = input("Informe o caminho do arquivo: ")
 
 print("Iniciando a conexão com o banco de dados...")
 
-DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
+DATABASE_URL = f"mssql+pyoiledbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
 
@@ -28,13 +30,16 @@ session = SessionLocal()
 
 Autodocs = getattr(Base.classes, "Autodocs")
 
-print("Carregando dados do arquivo JSON...")
+print("Sucesso! Inicializando migração de Fórmulas...")
 
-json_file = os.path.join(path_folder, "documentos.json")
-with open(json_file, 'r', encoding='utf-8') as file:
-    json_data = json.load(file)
+csv.field_size_limit(10000000000000)
 
-log_folder = path_folder
+todos_arquivos = glob.glob(f'{path_file}/formulas.csv')
+
+df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar="'", on_bad_lines='warn', escapechar='\\')
+df = df.replace('None', '')
+
+log_folder = path_file
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
@@ -54,34 +59,37 @@ id_pai = getattr(autodocs_pai, "Id do Texto")
 
 print(f"Id do Texto do AUTODOCS pai criado: {id_pai}")
 
-print("Iniciando a inserção dos Autodocs...")
+for idx, row in df.iterrows():
 
-for dict in json_data:
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    if dict.get("conteudo") in ['', '<br>', None]:
+    text = verify_nan(row["Descricao"])
+    if text == None:
         not_inserted_cont += 1
-        dict['Motivo'] = 'Conteúdo vazio'
-        dict['Timestamp'] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(dict)
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Texto vazio ou nulo'
+        not_inserted_data.append(row_dict)
         continue
+        
 
-    if dict.get("nome") in ['', '<br>', None]:
+    name = verify_nan(row["Titulo"])
+    if name == None:
         not_inserted_cont += 1
-        dict['Motivo'] = 'Nome vazio'
-        dict['Timestamp'] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(dict)
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Nome da fórmula vazio ou nulo'
+        not_inserted_data.append(row_dict)
         continue
 
     new_autodocs = Autodocs(
-        Texto=dict["conteudo"],
-        Biblioteca=dict["nome"],
+        Texto=text,
+        Biblioteca=name,
         Pai=id_pai
     )
-    setattr(new_autodocs, "Id do Texto", 0 - dict['codd'])
 
     log_data.append({
-        "Texto": dict["conteudo"],
-        "Biblioteca": dict["nome"],
+        "Texto": text,
+        "Biblioteca": name,
         "Pai": id_pai
     })
 
@@ -98,5 +106,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_autodocs_documentos.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_autodocs_documentos.xlsx")
+create_log(log_data, log_folder, "log_inserted_formulas.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_formulas.xlsx")

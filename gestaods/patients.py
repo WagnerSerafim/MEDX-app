@@ -1,13 +1,44 @@
+from datetime import datetime
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+import re
+from sqlalchemy import MetaData, Table, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
 import csv
-from datetime import datetime
+
+def get_adress(row):
+    street = verify_nan(row['Endereco'])
+    number = verify_nan(row['Numero'])
+    
+    if street and number:
+        return f"{street} {number}"
+    elif street:
+        return street
+    else:
+        return None
+    
+def limpar_numero(valor):
+    if valor is None:
+        return None
+    valor_str = str(valor)
+    if valor_str.endswith('.0'):
+        valor_str = valor_str[:-2]
+    valor_str = valor_str.strip()
+    return valor_str
+
+def limpar_cpf(valor):
+    if valor is None:
+        return None
+    valor_str = str(valor)
+    if valor_str.endswith('.0'):
+        valor_str = valor_str[:-2]
+    valor_str = re.sub(r'\D', '', valor_str)
+    if len(valor_str) < 11 and len(valor_str) > 0:
+        valor_str = valor_str.zfill(11)
+    return valor_str if valor_str else None
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -20,23 +51,23 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Contatos(Base):
+    __table__ = contatos_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-Contatos = getattr(Base.classes, "Contatos")
+print("Sucesso! Inicializando migração de Contatos...")
 
-print("Sucesso! Inicializando a leitura do arquivo...")
+csv.field_size_limit(1000000)
+cadastro_file = glob.glob(f'{path_file}/pacientes.csv')
 
-extension_file = glob.glob(f'{path_file}/pacientes.csv')
-
-csv.field_size_limit(1000000000)
-df = pd.read_csv(extension_file[0], sep=';', engine='python')
-
-# Remove aspas simples de todos os valores string do DataFrame
-df = df.applymap(lambda x: x.replace("'", "") if isinstance(x, str) else x)
+df = pd.read_csv(cadastro_file[0], sep=';', engine='python', quotechar="'", on_bad_lines='warn', escapechar='\\')
 
 log_folder = path_file
 
@@ -48,17 +79,26 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-print("Sucesso! Iniciando a migração de pacientes...")
+for idx, row in df.iterrows():
 
-for _, row in df.iterrows():
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    # Verifica se Cod Paciente é um número
-    try:
-        id_patient = int(row['Cod Paciente'])
-    except (ValueError, TypeError):
-        not_inserted_cont += 1
+    id_patient = verify_nan(row["Cod Paciente"])
+    if id_patient == None:
+        not_inserted_cont +=1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Cod Paciente não é um número válido'
+        row_dict['Motivo'] = 'Id do Cliente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+    
+    name = verify_nan(row["Nome Paciente"])
+    if name == None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Nome do Paciente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
 
@@ -66,139 +106,64 @@ for _, row in df.iterrows():
     if existing_record:
         not_inserted_cont +=1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente já existe no banco de dados'
+        row_dict['Motivo'] = 'Id do Cliente já existe no Banco de Dados'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
 
-    if row["Cod Paciente"] in [None, '', 'None'] or pd.isna(row["Cod Paciente"]):
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente vazio'
-        not_inserted_data.append(row_dict)
-        continue
+    email = verify_nan(row["E-mail"])
+
+    birthday_obj = verify_nan(row["Nascimento"])
+    if birthday_obj == None:
+        birthday = '1900-01-01'
     else:
-        id_patient = row["Cod Paciente"]
+        birthday = datetime.strptime(birthday_obj, '%d/%m/%Y').strftime('%Y-%m-%d')
+        if not birthday or not is_valid_date(birthday, '%Y-%m-%d'):
+            birthday = '1900-01-01'
+
+    sex = verify_nan(row['Sexo'])
+    sex = 'F' if sex == 'F' else 'M'
+
+    mother = verify_nan(row['Pai'])
+    father = verify_nan(row['Mae'])
+    rg = verify_nan(row['RG'])
+    cpf = limpar_cpf(verify_nan(row['CPF']))
+    conjuge = None
+    observations = verify_nan(row['Observacao'])
     
-    if row['Nome Paciente'] in [None, '', 'None'] or pd.isna(row['Nome Paciente']):
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Nome do Paciente vazio'
-        not_inserted_data.append(row_dict)
-        continue
-    else:
-        name = row['Nome Paciente']
+    cellphone = limpar_numero(verify_nan(row['Celular']))
+    phone = verify_nan(row['Telefone'])
+    cep = limpar_numero(verify_nan(row['CEP']))
+    address = get_adress(row)
+    complement = verify_nan(row['Complemento'])
+    neighborhood = verify_nan(row['Bairro'])
+    city = verify_nan(row['Cidade'])
+    state = verify_nan(row['UF'])
+    occupation = verify_nan(row['Ocupacao'])
 
-    if is_valid_date(row["Nascimento"], "%d-%m-%Y"):
-        dt_datetime = datetime.strptime(row['Nascimento'], "%d/%m/%Y")
-        birthday = dt_datetime.strftime("%Y-%m-%d")
-    else:
-        birthday = '01/01/1900'
-
-    if row['Sexo'] == 'F':
-        sex = 'F'
-    else:
-        sex = 'M'
-
-    if row['Endereco'] in [None, '', 'None'] or pd.isna(row['Endereco']):
-        address = ''
-    else:
-        if row['Numero'] not in [None, '', 'None'] or pd.isna(row['Numero']):
-            number = str(row['Numero'])
-            address = f"{row['Endereco']} {number}"
-        else:
-            address = row['Endereco']
-
-    if row['Complemento'] in [None, '', 'None'] or pd.isna(row['Complemento']):
-        complement = ''
-    else:
-        complement = row['Complemento']
-
-    if row['Bairro'] in [None, '', 'None'] or pd.isna(row['Bairro']):
-        neighbourhood = ''
-    else:
-        neighbourhood = row['Bairro']
-    
-    if row['Cidade'] in [None, '', 'None'] or pd.isna(row['Cidade']):
-        city = ''
-    else:
-        city = row['Cidade']
-
-    if row['UF'] in [None, '', 'None'] or pd.isna(row['UF']):
-        state = ''
-    else:
-        state = row['UF']
-
-    if row['CEP'] in [None, '', 'None'] or pd.isna(row['CEP']):
-        cep = ''
-    else:
-        cep = row['CEP']
-
-    if row['E-mail'] in [None, '', 'None'] or pd.isna(row['E-mail']):
-        email = ''
-    else:
-        email = row['E-mail']
-
-    if row['Telefone'] in [None, '', 'None'] or pd.isna(row['Telefone']):
-        telephone = ''
-    else:
-        telephone = row['Telefone']
-
-    if row['Celular'] in [None, '', 'None'] or pd.isna(row['Celular']):
-        cellphone = ''
-    else:
-        cellphone = row['Celular']
-
-    if row['CPF'] in [None, '', 'None'] or pd.isna(row['CPF']):
-        cpf = ''
-    else:
-        cpf = row['CPF']
-    
-    if row['RG'] in [None, '', 'None'] or pd.isna(row['RG']):
-        rg = ''
-    else:
-        rg = row['RG']
-
-    if row['Ocupacao'] in [None, '', 'None'] or pd.isna(row['Ocupacao']):
-        occupation = ''
-    else:
-        occupation = row['Ocupacao']
-
-    if row['Observacao'] in [None, '', 'None'] or pd.isna(row['Observacao']):
-        observation = ''
-    else:
-        observation = row['Observacao']
-
-    if row['Pai'] in [None, '', 'None'] or pd.isna(row['Pai']):
-        father = ''
-    else:
-        father = row['Pai']
-    
-    if row['Mae'] in [None, '', 'None'] or pd.isna(row['Mae']):
-        mother = ''
-    else:
-        mother = row['Mae']
-       
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
         Nascimento=birthday,
         Sexo=sex,
-        Celular=truncate_value(cellphone, 25),
         Email=truncate_value(email, 100),
     )
 
     setattr(new_patient, "Id do Cliente", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
-    setattr(new_patient, "Cep Residencial", truncate_value(cep, 10))
-    setattr(new_patient, "Endereço Residencial", truncate_value(address, 50))
-    setattr(new_patient, "Endereço Comercial", truncate_value(complement, 50))
-    setattr(new_patient, "Bairro Residencial", truncate_value(neighbourhood, 25))
-    setattr(new_patient, "Cidade Residencial", truncate_value(city, 25))
-    setattr(new_patient, "Estado Residencial", truncate_value(state, 2))
-    setattr(new_patient, "Telefone Residencial", truncate_value(telephone, 25))
-    setattr(new_patient, "Profissão", truncate_value(occupation, 25))
     setattr(new_patient, "Pai", truncate_value(father, 50))
     setattr(new_patient, "Mãe", truncate_value(mother, 50))
     setattr(new_patient, "RG", truncate_value(rg, 25))
+    setattr(new_patient, "Cônjugue", truncate_value(conjuge, 50))
+    setattr(new_patient, "Observações", observations)
+    setattr(new_patient, "Celular", truncate_value(cellphone, 20))
+    setattr(new_patient, "Telefone", truncate_value(phone, 20))
+    setattr(new_patient, "Cep Residencial", cep)
+    setattr(new_patient, "Endereço Residencial", truncate_value(address, 50))
+    setattr(new_patient, "Endereço Comercial", truncate_value(complement, 50))
+    setattr(new_patient, "Bairro Residencial", truncate_value(neighborhood, 25))
+    setattr(new_patient, "Cidade Residencial", truncate_value(city, 25))
+    setattr(new_patient, "Estado Residencial", truncate_value(state, 2))
+    setattr(new_patient, "Profissão", truncate_value(occupation, 25))
 
     
     log_data.append({
@@ -207,26 +172,28 @@ for _, row in df.iterrows():
         "Nascimento": birthday,
         "Sexo": sex,
         "CPF/CGC": cpf,
-        "RG" : rg,
-        "Profissão": occupation,
         "Pai": father,
         "Mãe": mother,
-        "Telefone Residencial": telephone,
-        "Celular": cellphone,
         "Email": email,
+        "Cônjugue": conjuge,
+        "RG": rg,
+        "Observações": observations,
+        "Celular": cellphone,
+        "Telefone": phone,
         "Cep Residencial": cep,
         "Endereço Residencial": address,
-        "Endereço Comercial": truncate_value(complement, 50),
-        "Bairro Residencial": truncate_value(neighbourhood, 25),
+        "Endereço Comercial": complement,
+        "Bairro Residencial": neighborhood,
         "Cidade Residencial": city,
-        'Estado Residencial': state,
-        "Observações": observation
+        "Estado Residencial": state,
+        "Profissão": occupation,
+        "TimeStamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
 
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 500 == 0:
         session.commit()
 
 session.commit()
@@ -237,5 +204,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_patients_pacientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_patients_pacientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_pacientes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_pacientes.xlsx")

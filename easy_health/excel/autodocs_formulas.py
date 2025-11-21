@@ -1,8 +1,7 @@
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
+from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import exists, create_log
@@ -18,13 +17,16 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+autodocs_tbl = Table("Autodocs", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Autodocs(Base):
+    __table__ = autodocs_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-Autodocs = getattr(Base.classes, "Autodocs")
 
 print("Sucesso! Inicializando migração de Autodocs...")
 
@@ -74,10 +76,10 @@ for idx, row in df.iterrows():
         library = row['NOME']
 
     new_autodoc = Autodocs(
-        Texto = text,
         Pai = father,
         Biblioteca = library
     )
+    setattr(new_autodoc, "Texto", bindparam(None, value=text, type_=UnicodeText()))
     setattr(new_autodoc, "Id do Texto", id_text)
     
     log_data.append({

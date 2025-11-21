@@ -1,0 +1,163 @@
+from datetime import datetime
+import glob
+import os
+from sqlalchemy import MetaData, Table, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+import pandas as pd
+import urllib
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
+import csv
+
+sid = input("Informe o SoftwareID: ")
+password = urllib.parse.quote_plus(input("Informe a senha: "))
+dbase = input("Informe o DATABASE: ")
+path_file = input("Informe o caminho da pasta que contém os arquivos: ")
+
+print("Conectando no Banco de Dados...")
+
+DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
+
+engine = create_engine(DATABASE_URL)
+
+metadata = MetaData()
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Contatos(Base):
+    __table__ = contatos_tbl
+
+SessionLocal = sessionmaker(bind=engine)
+session = SessionLocal()
+
+print("Sucesso! Inicializando migração de Contatos...")
+
+csv.field_size_limit(1000000)
+cadastro_file = glob.glob(f'{path_file}/CADASTRO*.csv')
+paciente_file = glob.glob(f'{path_file}/PACIENTE*.csv')
+
+df_cadastro = pd.read_csv(cadastro_file[0], sep=',', engine='python')
+df_paciente = pd.read_csv(paciente_file[0], sep=',', engine='python')
+
+log_folder = path_file
+
+if not os.path.exists(log_folder):
+    os.makedirs(log_folder)
+
+log_data = []
+inserted_cont=0
+not_inserted_data = []
+not_inserted_cont = 0
+
+patient_info = {}
+
+for _,row in df_paciente.iterrows():
+    idPatient = verify_nan(row['ID_CADASTRO'])
+    if idPatient == None:
+        continue
+
+    patient_info[idPatient] = {
+        'sex': verify_nan(row['SEXO']),
+        'birthday': verify_nan(row['NASCIMENTO']),
+        'cpf': verify_nan(row['CPF']),
+        'fatherName': verify_nan(row['NOMEPAI']),
+        'motherName': verify_nan(row['NOMEMAE']),
+    }
+
+for idx, row in df_cadastro.iterrows():
+
+    if idx % 1000 == 0 or idx == len(df_cadastro):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df_cadastro)) * 100, 2)}%")
+
+    id_patient_str = verify_nan(row["ID"])
+    if id_patient_str == None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Id do Cliente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+
+    infos = patient_info.get(id_patient_str, {})
+    if not infos:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Informações do Paciente não encontradas'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+    
+    name = verify_nan(row["NOME"])
+    if name == None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Nome do Paciente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+
+    existing_record = exists(session, name, "Nome", Contatos)
+    if existing_record:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Cliente já existe no Banco de Dados'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+
+    email = verify_nan(row["EMAIL"])
+
+    birthday = verify_nan(infos.get('birthday'))
+    if not birthday or not is_valid_date(birthday, '%Y-%m-%d'):
+        birthday = '1900-01-01'
+
+    sex = verify_nan(infos.get('sex'))
+    if not sex:
+        sex = 'M'
+
+    cpf = verify_nan(infos.get('cpf'))
+
+    mother = verify_nan(infos.get('motherName'))
+    father = verify_nan(infos.get('fatherName'))
+
+    new_patient = Contatos(
+        Nome=truncate_value(name, 50),
+        Nascimento=birthday,
+        Sexo=sex,
+        Email=truncate_value(email, 100),
+    )
+
+    setattr(new_patient, "Referências", id_patient_str)
+    setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
+    setattr(new_patient, "Pai", truncate_value(father, 50))
+    setattr(new_patient, "Mãe", truncate_value(mother, 50))
+
+    
+    log_data.append({
+        "Referências": id_patient_str,
+        "Nome": name,
+        "Nascimento": birthday,
+        "Sexo": sex,
+        "CPF/CGC": cpf,
+        "Pai": father,
+        "Mãe": mother,
+        "Email": email,
+        "TimeStamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+    session.add(new_patient)
+
+    inserted_cont+=1
+    if inserted_cont % 100 == 0:
+        session.commit()
+
+session.commit()
+
+print(f"{inserted_cont} novos contatos foram inseridos com sucesso!")
+if not_inserted_cont > 0:
+    print(f"{not_inserted_cont} contatos não foram inseridos, verifique o log para mais detalhes.")
+
+session.close()
+
+create_log(log_data, log_folder, "log_inserted_patients.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_patients.xlsx")

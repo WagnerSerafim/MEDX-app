@@ -83,10 +83,6 @@ with open(csv_file[0], "r", encoding="utf-8") as f:
 data = [line.strip().split(";", maxsplit=5) for line in lines]  
 df = pd.DataFrame(data, columns=["Cod Paciente", "Nome Paciente", "Cod Medico", "Nome Medico", "Data", "Json"])
 
-# 
-# df = pd.read_csv(csv_file[0], sep=";", quotechar="'", engine='python')
-# df = df.fillna(value="")
-
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
@@ -96,6 +92,9 @@ not_inserted_data = []
 not_inserted_cont = 0
 
 for index, row in df.iterrows():
+
+    if index % 1000 == 0 or index == len(df):
+        print(f"Processados: {index} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((index / len(df)) * 100, 2)}%")
 
     if not pd.isna(row["Json"]) and isinstance(row["Json"], str):
         try:

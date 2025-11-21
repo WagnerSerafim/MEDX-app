@@ -3,7 +3,7 @@ import glob
 import os
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, bindparam, UnicodeText
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, verify_nan
@@ -67,8 +67,8 @@ not_inserted_cont = 0
 for idx, row in df_main.iterrows():
 
 
-    if idx % 1000 == 0 or idx == len(df):
-        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
+    if idx % 1000 == 0 or idx == len(df_main):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df_main)) * 100, 2)}%")
 
     id_record = verify_nan(row['id'])
     if id_record in [None, '', 'None']:
@@ -114,12 +114,12 @@ for idx, row in df_main.iterrows():
         date = '01/01/1900 00:00'
  
     new_record = HistoricoClientes(
-        Histórico=record,
         Data=date
     )
     setattr(new_record, "Id do Histórico", (row['id']))
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
+    setattr(new_record, "Histórico", bindparam(None, value=record, type_=UnicodeText()))
 
     log_data.append({
         "Id do Histórico": (row['id']),
