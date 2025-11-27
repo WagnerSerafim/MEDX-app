@@ -29,7 +29,7 @@ def write_summary_json(folder: str, filename: str, payload: dict):
     return path
 
 # ---------- conexões ----------
-PG_URL = "postgresql+psycopg://postgres:ER07021972@localhost:5432/climes_35412"
+PG_URL = "postgresql+psycopg://postgres:Er07021972?@localhost:5432/36460_Ariana_Favila"
 engine_pg = create_engine(PG_URL)
 
 sid = input("Informe o SoftwareID: ")

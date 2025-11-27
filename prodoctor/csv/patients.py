@@ -10,8 +10,8 @@ from utils.utils import is_valid_date, exists, create_log, truncate_value, verif
 import csv
 
 def get_adress(row):
-    street = verify_nan(row['Endereço'])
-    number = verify_nan(row['Número'])
+    street = verify_nan(row['r_logradouro'])
+    number = verify_nan(row['r_numero'])
     
     if street and number:
         return f"{street} {number}"
@@ -65,9 +65,9 @@ session = SessionLocal()
 print("Sucesso! Inicializando migração de Contatos...")
 
 csv.field_size_limit(1000000)
-cadastro_file = glob.glob(f'{path_file}/Clientes*.csv')
+cadastro_file = glob.glob(f'{path_file}/t_pacientes.csv')
 
-df = pd.read_csv(cadastro_file[0], sep=';', engine='python', quotechar='"', encoding='latin1')
+df = pd.read_csv(cadastro_file[0], sep=',', engine='python', quotechar='"')
 
 log_folder = path_file
 
@@ -75,7 +75,7 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont=0
+inserted_cont = 0
 not_inserted_data = []
 not_inserted_cont = 0
 
@@ -84,7 +84,7 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_patient = verify_nan(row["Código"])
+    id_patient = verify_nan(row["codigo"])
     if id_patient == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -93,15 +93,6 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     
-    name = verify_nan(row["Nome"])
-    if name == None:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Nome do Paciente vazio'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(row_dict)
-        continue
-
     existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
     if existing_record:
         not_inserted_cont +=1
@@ -111,31 +102,50 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    email = verify_nan(row["E-mail"])
+    name = verify_nan(row["nome"])
+    if name == None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Nome do Paciente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
 
-    birthday = verify_nan(row["Data de nascimento"])
-    if not birthday or not is_valid_date(birthday, '%Y-%m-%d'):
+    birthday = row['datanascimento']
+    if not is_valid_date(birthday, '%Y-%m-%d'):
         birthday = '1900-01-01'
-
-    sex = verify_nan(row['Sexo'])
-    sex = 'F' if sex == 'Feminino' else 'M'
-
-    mother = verify_nan(row['Mãe'])
-    father = verify_nan(row['Pai'])
-    rg = verify_nan(row['RG'])
-    cpf = limpar_cpf(verify_nan(row['CPF']))
-    conjuge = verify_nan(row['Cônjuge'])
-    observations = verify_nan(row['Observações'])
-    state = None
     
-    cellphone = limpar_numero(verify_nan(row['Celular']))
-    phone = verify_nan(row['Telefone'])
-    cep = limpar_numero(verify_nan(row['CEP']))
-    address = get_adress(row)
-    complement = verify_nan(row['Complemento'])
-    neighborhood = verify_nan(row['Bairro'])
-    city = verify_nan(row['Cidade'])
-    occupation = verify_nan(row['Profissão'])
+    email = verify_nan(row['correioeletronico'])
+    sex = verify_nan(row['sexo'])
+    if sex == 1:
+        sex = 'F'
+    else:
+        sex = 'M'
+
+    mother = verify_nan(row['mae_nome'])
+    father = verify_nan(row['pai_nome'])
+    cpf = limpar_cpf(verify_nan(row['cpf']))
+
+    obs = verify_nan(row['observacoes'])
+    pendencias = verify_nan(row["pendencias"])
+    if obs:
+        observations = obs
+        if pendencias:
+            observations += f" | Pendências: {pendencias}"
+    else:
+        observations = None
+        
+    rg = verify_nan(row['identidade'])
+    conjuge = None
+    cellphone = verify_nan(row['telefone_1'])
+    phone = None
+    cep = verify_nan(row['r_cep'])
+    address = None
+    complement = verify_nan(row['r_complemento'])
+    neighborhood = verify_nan(row['r_bairro'])
+    city = None
+    state = None
+    occupation = verify_nan(row['profissao'])
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -163,7 +173,7 @@ for idx, row in df.iterrows():
 
     
     log_data.append({
-        "Id do Cliente": id_patient,
+        "Referências": id_patient,
         "Nome": name,
         "Nascimento": birthday,
         "Sexo": sex,
@@ -189,7 +199,7 @@ for idx, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 1000 == 0:
+    if inserted_cont % 500 == 0:
         session.commit()
 
 session.commit()
@@ -200,5 +210,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_Clientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_Clientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_t_pacientes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_t_inserted_pacientes.xlsx")

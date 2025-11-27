@@ -4,35 +4,19 @@ import traceback
 from sqlalchemy import create_engine, insert, quoted_name, text, MetaData, Table
 from sqlalchemy.orm import sessionmaker, declarative_base
 import urllib
-from utils.utils import exists, is_valid_date, verify_nan  # removi create_log/not_inserted_log aqui
+from utils.utils import exists, is_valid_date, truncate_value, verify_nan, create_log  # add excel logger
 import gc
 
-def append_log_jsonl(folder: str, filename: str, records):
-    os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, filename)
-    if isinstance(records, dict):
-        records = [records]
-    with open(path, "a", encoding="utf-8") as f:
-        for rec in records:
-            f.write(json.dumps(rec, ensure_ascii=False))
-            f.write("\n")
-    return path
-
-def write_summary_json(folder: str, filename: str, payload: dict):
-    os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, filename)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    return path
+# JSONL logging removed; we'll use Excel logs via create_log()
 
 # ---------- conexões ----------
-PG_URL = "postgresql+psycopg://postgres:ER07021972@localhost:5432/climes_35412"
+PG_URL = "postgresql+psycopg://postgres:Er07021972?@localhost:5432/36460_Ariana_Favila"
 engine_pg = create_engine(PG_URL)
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
-# log_folder = input("Informe o caminho da pasta para salvar os logs: ")
+log_folder = input("Informe o caminho da pasta para salvar os logs: ")
 
 print("Conectando no Banco de Dados...")
 
@@ -68,7 +52,7 @@ not_inserted_cont = 0
 sql = text("""
     SELECT *
     FROM public.t_pacientes
-    WHERE codigo > 39876
+    WHERE codigo < 300
 """)
 
 with engine_pg.connect().execution_options(stream_results=True) as conn_pg:
@@ -77,16 +61,29 @@ with engine_pg.connect().execution_options(stream_results=True) as conn_pg:
 
     payload = []
     not_inserted_batch = []  # logs do lote atual (não acumular tudo)
+    not_inserted_all = []  # acumulador global para garantir escrita do log final
+    log_data = []
+    os.makedirs(log_folder, exist_ok=True)
 
     for idx, row in enumerate(result, start=1):
         try:
             id_patient = verify_nan(row['codigo'])
             if not id_patient:
-                not_inserted_batch.append({**row, "Motivo": "ID do paciente vazio"})
+                entry = {**row, "Motivo": "ID do paciente vazio"}
+                not_inserted_batch.append(entry)
+                not_inserted_all.append(entry)
                 not_inserted_cont += 1
                 continue
 
             patient = exists(session, id_patient, "Id do Cliente", Contatos)
+
+            name = verify_nan(row['nome'])
+            if not name:
+                entry = {**row, "Motivo": "Nome do paciente vazio"}
+                not_inserted_batch.append(entry)
+                not_inserted_all.append(entry)
+                not_inserted_cont += 1
+                continue
 
             birthday = verify_nan(row['datanascimento'])
             if not is_valid_date(birthday, '%Y-%m-%d'):
@@ -113,23 +110,26 @@ with engine_pg.connect().execution_options(stream_results=True) as conn_pg:
             mother = verify_nan(row['mae_nome'])
             father = verify_nan(row['pai_nome'])
 
-            payload.append({
+            rec = {
                 'Id do Cliente': id_patient,
+                'Nome': truncate_value(name, 50),
                 'Nascimento': birthday,
-                'Endereço Residencial': address,
-                'Endereço Comercial': complement,
-                'Bairro Residencial': neighborhood,
-                'Cep Residencial': cep,
-                'Celular': cellphone,
-                'Email': email,
-                'Profissão': occupation,
+                'Endereço Residencial': truncate_value(address, 50),
+                'Endereço Comercial': truncate_value(complement, 50),
+                'Bairro Residencial': truncate_value(neighborhood, 25),
+                'Cep Residencial': truncate_value(cep, 10),
+                'Celular': truncate_value(cellphone, 25),
+                'Email': truncate_value(email, 100),
+                'Profissão': truncate_value(occupation, 25),
                 'Sexo': sex,
-                'RG': rg,
-                'CPF/CGC': cpf,
+                'RG': truncate_value(rg, 25),
+                'CPF/CGC': truncate_value(cpf, 25),
                 'Observações': obs,
-                'Mãe': mother,
-                'Pai': father,
-            })
+                'Mãe': truncate_value(mother, 50),
+                'Pai': truncate_value(father, 50),
+            }
+            payload.append(rec)
+            log_data.append(rec)
 
             # mini-lote
             if len(payload) >= BATCH_SIZE:
@@ -140,7 +140,9 @@ with engine_pg.connect().execution_options(stream_results=True) as conn_pg:
                     session.rollback()
                     print("Erro ao inserir mini-lote:", traceback.format_exc())
                     for p in payload:
-                        not_inserted_batch.append({**p, "Motivo": f"Falha no commit do mini-lote: {e}"})
+                        entry = {**p, "Motivo": f"Falha no commit do mini-lote: {e}"}
+                        not_inserted_batch.append(entry)
+                        not_inserted_all.append(entry)
                         not_inserted_cont += 1
 
                 # if not_inserted_batch:
@@ -154,7 +156,9 @@ with engine_pg.connect().execution_options(stream_results=True) as conn_pg:
             total += 1
 
         except Exception as e:
-            not_inserted_batch.append({**dict(row), "Motivo": str(e)})
+            entry = {**dict(row), "Motivo": str(e)}
+            not_inserted_batch.append(entry)
+            not_inserted_all.append(entry)
             not_inserted_cont += 1
 
     if payload:
@@ -167,23 +171,21 @@ with engine_pg.connect().execution_options(stream_results=True) as conn_pg:
             session.rollback()
             print("Erro ao inserir mini-lote final:", traceback.format_exc())
             for p in payload:
-                not_inserted_batch.append({**p, "Motivo": f"Falha no commit do mini-lote final: {e}"})
+                entry = {**p, "Motivo": f"Falha no commit do mini-lote final: {e}"}
+                not_inserted_batch.append(entry)
+                not_inserted_all.append(entry)
                 not_inserted_cont += 1
         payload.clear()
         gc.collect()
 
-    # if not_inserted_batch:
-    #     append_log_jsonl(log_folder, nao_inseridos_file, not_inserted_batch)
-    #     not_inserted_batch.clear()
+    if not_inserted_batch:
+        create_log(not_inserted_batch, log_folder, f"log_not_inserted_patients_{dbase}.xlsx")
+        print(f"Logs gravados em: {log_folder}")
 
 print(f"Concluído. Total lidas: {total} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont}")
+# write Excel logs (inserted and not-inserted)
+create_log(log_data, log_folder, f"log_inserted_patients_{dbase}.xlsx")
 
-# # resumo leve (não explode memória)
-# write_summary_json(log_folder, resumo_file, {
-#     "database_destino": dbase,
-#     "total_linhas_lidas": total,
-#     "total_inseridos": inserted_cont,
-#     "total_nao_inseridos": not_inserted_cont,
-#     "arquivo_nao_inseridos_jsonl": nao_inseridos_file
-# })
-# print(f"Logs em: {os.path.join(log_folder, nao_inseridos_file)} e {os.path.join(log_folder, resumo_file)}")
+if not_inserted_batch:
+    create_log(not_inserted_batch, log_folder, f"log_not_inserted_patients_{dbase}.xlsx")
+    print(f"Logs gravados em: {log_folder}")

@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -6,14 +7,19 @@ from datetime import datetime
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, verify_nan
-import csv
+
+def get_record(row, exame_nome):
+    record = None
+    resultado = verify_nan(row['resultado'])
+    if resultado != None:
+        record = f"Exame: {exame_nome}<br>Resultado: {resultado} {verify_nan(row['unidade_medida'])}<br>Realizado em: {verify_nan(row['data'])}"
+    
+    return record
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
 path_file = input("Informe o caminho da pasta que contém os arquivos: ")
-
-print("Conectando no Banco de dados...")
 
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
@@ -32,10 +38,14 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-csv.field_size_limit(100000000000)
-todos_arquivos = glob.glob(f'{path_file}/Pedidos de exames*.csv')
+todos_arquivos = glob.glob(f'{path_file}/bioquimica_exames_resultados.json')
+exames_file = glob.glob(f'{path_file}/bioquimica_exames.json')
 
-df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar='"', encoding='latin1')
+with open(todos_arquivos[0], 'r', encoding='utf-8') as f:
+    df = pd.read_json(todos_arquivos[0], encoding='utf-8')
+
+with open(exames_file[0], 'r', encoding='utf-8') as f:
+    df_exames = pd.read_json(exames_file[0], encoding='utf-8')
 
 log_folder = path_file
 
@@ -43,16 +53,20 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont = 0
+inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
+exames = {}
+for _, row in df_exames.iterrows():
+    exames[row['id']] = row['nome']
+    
 for idx, row in df.iterrows():
 
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    record_id = verify_nan(row['Código'])
+    record_id = verify_nan(row['id'])
     if record_id == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -62,28 +76,47 @@ for idx, row in df.iterrows():
 
     existing_record = exists(session, record_id, "Id do Histórico", Historico)
     if existing_record:
-        not_inserted_cont +=1
+        not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico já existe no banco de dados'
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = verify_nan(row['Código do paciente'])
-
-    content = verify_nan(row['Conteúdo'])
-    if content == None:
+    id_patient = verify_nan(row['paciente_id'])
+    if id_patient == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Histórico vazio'
+        row_dict['Motivo'] = 'Id do paciente vazio'
         not_inserted_data.append(row_dict)
         continue
-    record = f"Pedido de Exames: {row['Exame']}<br><br>{content}"
+    id_patient = int(id_patient)
 
-    if is_valid_date(row['created_at'], "%Y-%m-%d %H:%M:%S"):
-        date = row['created_at']
+    exame_id = verify_nan(row['exame_id'])
+    exame = exames.get(exame_id, None)
+    if exame == None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Exame desconhecido'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+
+    record = get_record(row, exame)
+    if record == None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Histórico vazio ou inválido'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+    
+    date_obj = verify_nan(row['created_at'])
+    if date_obj == None:
+        date = '1900-01-01'
     else:
-        date = '1900-01-01 00:00:00'
-
+        if is_valid_date(date_obj, '%Y-%m-%d %H:%M:%S'):
+            date = date_obj
+        
     new_record = Historico(
         Data=date,
     )
@@ -113,5 +146,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_records_Pedidos_Exames.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_records_Pedidos_Exames.xlsx")
+create_log(log_data, log_folder, "log_inserted_receita_personalizada.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_receita_personalizada.xlsx")

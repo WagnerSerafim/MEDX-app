@@ -7,18 +7,6 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
-import csv
-
-def get_adress(row):
-    street = verify_nan(row['Endereço'])
-    number = verify_nan(row['Número'])
-    
-    if street and number:
-        return f"{street} {number}"
-    elif street:
-        return street
-    else:
-        return None
     
 def limpar_numero(valor):
     if valor is None:
@@ -64,10 +52,14 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-csv.field_size_limit(1000000)
-cadastro_file = glob.glob(f'{path_file}/Clientes*.csv')
+cadastro_file = glob.glob(f'{path_file}/paciente.json')
+endereco_file = glob.glob(f'{path_file}/endereco.json')
 
-df = pd.read_csv(cadastro_file[0], sep=';', engine='python', quotechar='"', encoding='latin1')
+with open(cadastro_file[0], 'r', encoding='utf-8') as f:
+    df = pd.read_json(f)
+
+with open(endereco_file[0], 'r', encoding='utf-8') as f:
+    df_endereco = pd.read_json(f)
 
 log_folder = path_file
 
@@ -79,12 +71,24 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
+enderecos = {}
+for _,row in df_endereco.iterrows():
+    enderecos[row['id']] = {
+        'cep': row['cep'],
+        'endereco': row['endereco'],
+        'numero': row['numero'],
+        'complemento': row['complemento'],
+        'bairro': row['bairro'],
+        'cidade': row['cidade'],
+        'estado': row['estado']
+    }
+
 for idx, row in df.iterrows():
 
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_patient = verify_nan(row["Código"])
+    id_patient = verify_nan(row["id"])
     if id_patient == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -93,7 +97,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     
-    name = verify_nan(row["Nome"])
+    name = verify_nan(row["nome"])
     if name == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -111,31 +115,48 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    email = verify_nan(row["E-mail"])
+    email = verify_nan(row["email"])
 
-    birthday = verify_nan(row["Data de nascimento"])
-    if not birthday or not is_valid_date(birthday, '%Y-%m-%d'):
+    try:
+        birthday_obj = verify_nan(row["data_nascimento"])
+        if birthday_obj == None:
+            birthday = '1900-01-01'
+        else:
+            birthday = datetime.strptime(birthday_obj, '%d/%m/%Y').strftime('%Y-%m-%d')
+            if not birthday or not is_valid_date(birthday, '%Y-%m-%d'):
+                birthday = '1900-01-01'
+    except ValueError:
         birthday = '1900-01-01'
 
-    sex = verify_nan(row['Sexo'])
-    sex = 'F' if sex == 'Feminino' else 'M'
+    sex = verify_nan(row['sexo_id'])
+    sex = 'F' if sex == 2 else 'M'
 
-    mother = verify_nan(row['Mãe'])
-    father = verify_nan(row['Pai'])
-    rg = verify_nan(row['RG'])
-    cpf = limpar_cpf(verify_nan(row['CPF']))
-    conjuge = verify_nan(row['Cônjuge'])
-    observations = verify_nan(row['Observações'])
-    state = None
-    
-    cellphone = limpar_numero(verify_nan(row['Celular']))
-    phone = verify_nan(row['Telefone'])
-    cep = limpar_numero(verify_nan(row['CEP']))
-    address = get_adress(row)
-    complement = verify_nan(row['Complemento'])
-    neighborhood = verify_nan(row['Bairro'])
-    city = verify_nan(row['Cidade'])
-    occupation = verify_nan(row['Profissão'])
+    mother = None
+    father = None
+    rg = verify_nan(row['rg'])
+    cpf = limpar_cpf(verify_nan(row['cpf']))
+    conjuge = None
+    observations = verify_nan(row['observacao'])
+    cellphone = limpar_numero(verify_nan(row['celular']))
+    phone = verify_nan(row['telefone_residencial'])
+    occupation = verify_nan(row['profissao'])
+
+    address_infos = enderecos.get(row['endereco_id'], None)
+    if address_infos:
+        cep = address_infos['cep']
+        address = f"{address_infos['endereco']} {address_infos['numero']}"
+        complement = address_infos['complemento']
+        neighborhood = address_infos['bairro']
+        city = address_infos['cidade']
+        state = address_infos['estado']
+    else:
+        cep = None
+        address = None
+        complement = None
+        neighborhood = None
+        city = None
+        state = None
+
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -144,6 +165,7 @@ for idx, row in df.iterrows():
         Email=truncate_value(email, 100),
     )
 
+    setattr(new_patient, "Id da Assinatura", id_patient)
     setattr(new_patient, "Id do Cliente", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
     setattr(new_patient, "Pai", truncate_value(father, 50))
@@ -200,5 +222,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_Clientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_Clientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_pacientes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_pacientes.xlsx")

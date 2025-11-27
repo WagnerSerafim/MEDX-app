@@ -7,19 +7,16 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
-import csv
+import csv 
 
 def get_adress(row):
-    street = verify_nan(row['Endereço'])
-    number = verify_nan(row['Número'])
+    street = verify_nan(row['tbEndereco'])
     
-    if street and number:
-        return f"{street} {number}"
-    elif street:
-        return street
-    else:
+    if street == ',':
         return None
     
+    return street
+
 def limpar_numero(valor):
     if valor is None:
         return None
@@ -64,10 +61,11 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-csv.field_size_limit(1000000)
-cadastro_file = glob.glob(f'{path_file}/Clientes*.csv')
+cadastro_file = glob.glob(f'{path_file}/Pacientes.csv')
+conjuge_file = glob.glob(f'{path_file}/PacientesOutrosCampos.csv')
 
-df = pd.read_csv(cadastro_file[0], sep=';', engine='python', quotechar='"', encoding='latin1')
+df = pd.read_csv(cadastro_file[0], dtype=str, encoding='latin1', sep=';', quotechar='"')
+df_conjuge = pd.read_csv(conjuge_file[0], dtype=str, encoding='latin1', sep=';', quotechar='"')
 
 log_folder = path_file
 
@@ -79,12 +77,17 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
+conjuges = {}
+for _,row in df_conjuge.iterrows():
+    if not row["tbAcompanhante"] == "":
+        conjuges[row['tbCodigo']] = row['tbAcompanhante']
+
 for idx, row in df.iterrows():
 
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_patient = verify_nan(row["Código"])
+    id_patient = verify_nan(row["tbCodigo"])
     if id_patient == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -93,7 +96,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     
-    name = verify_nan(row["Nome"])
+    name = verify_nan(row["tbNome"])
     if name == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -111,31 +114,32 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    email = verify_nan(row["E-mail"])
-
-    birthday = verify_nan(row["Data de nascimento"])
+    birthday_obj = verify_nan(row["tbDtNasc"])
+    birthday_obj = datetime.strptime(birthday_obj, '%d/%m/%Y') if birthday_obj else None
+    birthday = birthday_obj.strftime('%Y-%m-%d') if birthday_obj else None
     if not birthday or not is_valid_date(birthday, '%Y-%m-%d'):
         birthday = '1900-01-01'
 
-    sex = verify_nan(row['Sexo'])
-    sex = 'F' if sex == 'Feminino' else 'M'
+    email = verify_nan(row["tbEmail"])
+    sex = verify_nan(row['tbSexo'])
+    sex = 'F' if sex == 'F' else 'M'
 
-    mother = verify_nan(row['Mãe'])
-    father = verify_nan(row['Pai'])
-    rg = verify_nan(row['RG'])
-    cpf = limpar_cpf(verify_nan(row['CPF']))
-    conjuge = verify_nan(row['Cônjuge'])
-    observations = verify_nan(row['Observações'])
-    state = None
+    mother = verify_nan(row['tbNomeMae'])
+    father = verify_nan(row['tbNomePai'])
+    rg = verify_nan(row['tbRg'])
+    cpf = limpar_cpf(verify_nan(row['tbCPF']))
+    conjuge = truncate_value(conjuges.get(row['tbCodigo'], None), 50)
+    observations = None
     
-    cellphone = limpar_numero(verify_nan(row['Celular']))
-    phone = verify_nan(row['Telefone'])
-    cep = limpar_numero(verify_nan(row['CEP']))
+    cellphone = limpar_numero(verify_nan(row['tbCelular']))
+    phone = limpar_numero(verify_nan(row['tbFoneRes']))
+    cep = limpar_numero(verify_nan(row['tbCEP']))
     address = get_adress(row)
-    complement = verify_nan(row['Complemento'])
-    neighborhood = verify_nan(row['Bairro'])
-    city = verify_nan(row['Cidade'])
-    occupation = verify_nan(row['Profissão'])
+    complement = None
+    neighborhood = verify_nan(row['tbBairro'])
+    city = verify_nan(row['tbCidade'])
+    state = verify_nan(row['tbEstado'])
+    occupation = row['tbProfissao']
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -189,7 +193,7 @@ for idx, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 1000 == 0:
+    if inserted_cont % 500 == 0:
         session.commit()
 
 session.commit()
@@ -200,5 +204,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_Clientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_Clientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_Pacientes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_Pacientes.xlsx")
