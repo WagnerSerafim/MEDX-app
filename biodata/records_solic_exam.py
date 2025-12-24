@@ -30,7 +30,7 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/solicitacao_exame.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/tblSolicitacaoExame.xlsx')
 
 df = pd.read_excel(todos_arquivos[0])
 df = df.replace('None', '')
@@ -110,5 +110,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_solicitacao_exame.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_solicitacao_exame.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_tblSolicitacaoExame.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_tblSolicitacaoExame.xlsx")

@@ -6,7 +6,7 @@ from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
 from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
-from utils.utils import exists, create_log
+from utils.utils import exists, create_log, verify_nan
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -36,7 +36,7 @@ todos_arquivos = glob.glob(f'{path_file}/dados.xlsx')
 df = pd.read_excel(todos_arquivos[0], sheet_name='prescricoes')
 df = df.replace('None', '')
 
-df_schedule = pd.read_excel(todos_arquivos[0], sheet_name='atendimentos')
+df_schedule = pd.read_excel(todos_arquivos[0], sheet_name='atendimento')
 df_schedule = df_schedule.replace('None', '')
 
 schedules = {}
@@ -55,7 +55,13 @@ not_inserted_cont = 0
 
 for idx, row in df.iterrows():
 
-    schedule = schedules[row['CODIGOATENDIMENTO']]
+    schedule = verify_nan(schedules[row['CODIGOATENDIMENTO']])
+    if schedule is None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Agendamento não encontrado para o pedido de exame'
+        not_inserted_data.append(row_dict)
+        continue
 
     id_record = row['CODIGO']
     if id_record in ['', None]:

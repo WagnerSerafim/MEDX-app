@@ -1,12 +1,13 @@
 from datetime import datetime
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+import re
+from sqlalchemy import MetaData, Table, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.exc import DataError, IntegrityError
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
 import csv
 
 sid = input("Informe o SoftwareID: ")
@@ -20,18 +21,21 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Contatos(Base):
+    __table__ = contatos_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-Contatos = getattr(Base.classes, "Contatos")
-
 print("Sucesso! Inicializando migração de Contatos...")
 
 csv.field_size_limit(1000000)
-extension_file = glob.glob(f'{path_file}/patients.csv')
+extension_file = glob.glob(f'{path_file}/patients*.csv')
 
 df = pd.read_csv(extension_file[0], sep=';', engine='python', encoding='utf-16')
 
@@ -45,7 +49,10 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df.iterrows():
+for idx, row in df.iterrows():
+
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     if row["id"] in [None, '', 'None'] or pd.isna(row["id"]):
         not_inserted_cont +=1
@@ -200,7 +207,7 @@ for _, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()

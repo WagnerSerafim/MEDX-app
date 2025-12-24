@@ -1,14 +1,14 @@
+from datetime import datetime
 import glob
-import json
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+import re
+from sqlalchemy import MetaData, Table, UnicodeText, bindparam, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.exc import DataError, IntegrityError
 import pandas as pd
 import urllib
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
 import csv
-from datetime import datetime
-from utils.utils import is_valid_date, exists, create_log
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -16,19 +16,23 @@ dbase = input("Informe o DATABASE: ")
 path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 print("Conectando no Banco de Dados...")
+
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+historico_tbl = Table("Histórico de Clientes", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Historico(Base):
+    __table__ = historico_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
-
-print("Sucesso! Inicializando migração de Históricos...")
+print("Sucesso! Inicializando migração de Histórico...")
 
 todos_arquivos = glob.glob(f'{path_file}/patients_ehr.csv')
 
@@ -47,11 +51,14 @@ not_inserted_data = []
 not_inserted_cont = 0
 id_cont = 0
 
-for _, row in df.iterrows():
+for idx, row in df.iterrows():
+
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     id_cont += 1
 
-    if exists(session, id_cont, "Id do Histórico", HistoricoClientes):
+    if exists(session, id_cont, "Id do Histórico", Historico):
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico já existe'
@@ -86,10 +93,10 @@ for _, row in df.iterrows():
     else:
         id_patient = row['patientId']
     
-    new_record = HistoricoClientes(
-        Histórico=record,
-        Data=date
+    new_record = Historico(
+        Data=date,
     )
+    setattr(new_record, "Histórico", bindparam(None, value=record, type_=UnicodeText()))
     setattr(new_record, "Id do Histórico", id_record)
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)

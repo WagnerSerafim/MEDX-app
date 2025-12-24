@@ -60,7 +60,7 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-cadastro_file = glob.glob(f'{path_file}/pacientes.xlsx')
+cadastro_file = glob.glob(f'{path_file}/tblClientes.xlsx')
 
 df = pd.read_excel(cadastro_file[0])
 
@@ -194,5 +194,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_pacientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_pacientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_tblClientes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_tblClientes.xlsx")

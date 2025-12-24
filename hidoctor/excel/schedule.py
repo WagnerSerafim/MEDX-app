@@ -1,8 +1,7 @@
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
+from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, verify_nan
@@ -19,23 +18,24 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+agenda_tbl = Table("Agenda", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Agenda(Base):
+    __table__ = agenda_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-Agenda = getattr(Base.classes, "Agenda")
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
 todos_arquivos = glob.glob(f'{path_file}/dados*.xlsx')
 
 df = pd.read_excel(todos_arquivos[0], sheet_name='COMPROMISSOSAGENDA')
-df = df.replace('None', '')
 
 df_other = pd.read_excel(todos_arquivos[0], sheet_name='COMPROMISSOSAGENDACONTATOS')
-df_other = df_other.replace('None', '')
 
 log_folder = path_file
 
@@ -49,7 +49,7 @@ not_inserted_cont = 0
 
 for idx, row in df.iterrows():
 
-    if idx % 500 == 0 or idx == len(df):
+    if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
     
     scheduling_id = verify_nan(row['Counter'])
@@ -73,8 +73,12 @@ for idx, row in df.iterrows():
     date_str = verify_nan(row['DataHoraComp'])
     if is_valid_date(date_str, '%Y-%m-%d %H:%M:%S'):
         start_time = date_str
-        start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-        end_dt = start_dt + timedelta(minutes=30)
+        if type(start_time) is str:
+            start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+            end_dt = start_dt + timedelta(minutes=15)
+        else: 
+            start_dt = start_time
+            end_dt = start_dt + timedelta(minutes=15)  
         end_time = end_dt.strftime('%Y-%m-%d %H:%M:%S')
     else:
         not_inserted_cont += 1
@@ -91,7 +95,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    user = row['profissional_id']
+    user = -143282371
 
     description = verify_nan(row['Descricao'])
     if row['Notas']:
@@ -122,7 +126,7 @@ for idx, row in df.iterrows():
 
     inserted_cont+=1
 
-    if inserted_cont % 500 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()

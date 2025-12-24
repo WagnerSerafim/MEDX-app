@@ -1,14 +1,12 @@
-import csv
 import glob
-import json
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
+from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime, timedelta
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log
-from datetime import datetime, timedelta
+from utils.utils import is_valid_date, exists, create_log, verify_nan
+import csv
 
 
 sid = input("Informe o SoftwareID: ")
@@ -18,16 +16,21 @@ path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 print("Conectando no Banco de Dados...")
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
-
 engine = create_engine(DATABASE_URL)
+metadata = MetaData()
+agenda_tbl = Table("Agenda", metadata, schema=f"schema_{sid}", autoload_with=engine)
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+Base = declarative_base()
+
+class Agenda(Base):
+    __table__ = agenda_tbl
+
+class Contatos(Base):
+    __table__ = contatos_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-Agenda = getattr(Base.classes, "Agenda")
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
@@ -49,7 +52,11 @@ not_inserted_cont = 0
 # id_user_cont = 1
 # users = {}
 id_scheduling_cont = 0
-for _, row in df.iterrows():
+
+for idx, row in df.iterrows():
+
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     id_scheduling_cont += 1
 

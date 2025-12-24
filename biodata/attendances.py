@@ -42,7 +42,7 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
-todos_arquivos = glob.glob(f'{path_file}/atendimento.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/tblAgenda.xlsx')
 
 df = pd.read_excel(todos_arquivos[0])
 df = df.replace('None', '')
@@ -62,7 +62,7 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    user_int = verify_nan(row['intUsuarioId'])
+    user_int = verify_nan(row['intProfissionalId'])
     user = get_user(user_int)
     
     id_patient = verify_nan(row['intClienteId'])
@@ -84,11 +84,8 @@ for idx, row in df.iterrows():
         continue
     
     description = patient.Nome
-    status = verify_nan(row['strRecebido'])
-    if status:
-        description += f" - {status}"
 
-    start_time = verify_nan(row['datAtendimento'])
+    start_time = verify_nan(row['datAgendamento'])
     if start_time == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -137,5 +134,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_atendimento.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_atendimento.xlsx")
+create_log(log_data, log_folder, "log_inserted_tblAgenda.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_tblAgenda.xlsx")

@@ -36,7 +36,7 @@ csv.field_size_limit(100000000000)
 todos_arquivos = glob.glob(f'{path_file}/Evoluções*.csv')
 
 df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar='"', encoding='latin1')
-
+print(df.columns)
 log_folder = path_file
 
 if not os.path.exists(log_folder):

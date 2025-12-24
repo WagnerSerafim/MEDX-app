@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
 import csv
 
 sid = input("Informe o SoftwareID: ")
@@ -45,7 +45,10 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-for _, row in df.iterrows():
+for idx, row in df.iterrows():
+
+    if idx % 1000 == 0 or idx == len(df):
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     if row["Prontuario"] in [None, '', 'None'] or pd.isna(row["Prontuario"]):
         not_inserted_cont +=1
@@ -87,52 +90,29 @@ for _, row in df.iterrows():
     else:
         sex = 'M'
 
-    if pd.isna(row['Email']):
-        email = ''
-    else:
-        email = row['Email']
+    email = verify_nan(row['Email'])
+    cpf = verify_nan(row['CPF'])
+    telephone = verify_nan(row['Telefone'])
+    cellphone = verify_nan(row['Celular'])
+    address = verify_nan(row['Logradouro'])
 
-    if pd.isna(row['CPF']):
-        cpf = ''
-    else:
-        cpf = row['CPF']
-
-    if pd.isna(row['Telefone']):
-        telephone = ''
-    else:
-        telephone = row['Telefone']
-
-    if pd.isna(row['Celular']):
-        cellphone = ''
-    else:
-        cellphone = row['Celular']
-
-
-    if pd.isna(row['Logradouro']):
-        address = ''
-    else:
+    if not address is None:
         address = f'{row['Logradouro']} {row['Numero'] if not pd.isna(row['Numero']) else ''}'
 
-    if pd.isna(row['CEP']):
-        cep = ''
-    else:
-        cep = row['CEP']
+    cep = verify_nan(row['CEP'])
     
-    if pd.isna(row['Bairro']):
-        neighbourhood = ''
-    else:
-        neighbourhood = row['Bairro']
+    neighbourhood = verify_nan(row['Bairro'])
 
-    complement = row['Complemento']
-    mother = row['Nome da Mae']
+    complement = verify_nan(row['Complemento'])
+    mother = verify_nan(row['Nome da Mae'])
 
-    city = ''
-    state = ''
-    observation = ''
-    marital_status = ''
-    occupation = ''
-    rg = ''
-    father = ''
+    city = None
+    state = None
+    observation = None
+    marital_status = None
+    occupation = None
+    rg = None
+    father = None
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -186,7 +166,7 @@ for _, row in df.iterrows():
     session.add(new_patient)
 
     inserted_cont+=1
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()

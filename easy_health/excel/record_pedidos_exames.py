@@ -35,7 +35,7 @@ todos_arquivos = glob.glob(f'{path_file}/dados.xlsx')
 df = pd.read_excel(todos_arquivos[0], sheet_name='pedido_exames')
 df = df.replace('None', '')
 
-df_schedule = pd.read_excel(todos_arquivos[0], sheet_name='atendimentos')
+df_schedule = pd.read_excel(todos_arquivos[0], sheet_name='atendimento')
 df_schedule = df_schedule.replace('None', '')
 
 schedules = {}

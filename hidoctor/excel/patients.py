@@ -1,8 +1,7 @@
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import pandas as pd
 import urllib
@@ -20,13 +19,16 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Contatos(Base):
+    __table__ = contatos_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-Contatos = getattr(Base.classes, "Contatos")
 
 print("Sucesso! Inicializando migração de Contatos...")
 

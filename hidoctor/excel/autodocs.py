@@ -1,8 +1,7 @@
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
+from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import exists, create_log
@@ -19,20 +18,23 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+autodocs_tbl = Table("Autodocs", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Autodocs(Base):
+    __table__ = autodocs_tbl
+
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-Autodocs = getattr(Base.classes, "Autodocs")
 
 print("Sucesso! Inicializando migração de Autodocs...")
 
 todos_arquivos = glob.glob(f'{path_file}/dados*.xlsx')
 
 df = pd.read_excel(todos_arquivos[0], sheet_name='TEXTOSCOMPLEMENTARES')
-df = df.replace('None', '')
 
 log_folder = path_file
 
@@ -68,10 +70,10 @@ for idx, row in df.iterrows():
         library = row['NomeTextoComplementar']
 
     new_autodoc = Autodocs(
-        Texto = text,
         Pai = father,
         Biblioteca = library
     )
+    setattr(new_autodoc, "Texto", bindparam(None, value=text, type_=UnicodeText()))
     
     log_data.append({
         "Biblioteca": library,

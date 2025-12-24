@@ -1,9 +1,8 @@
 from datetime import datetime
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
+from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, verify_nan
@@ -19,13 +18,19 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+historico_tbl = Table("Histórico de Clientes", metadata, schema=f"schema_{sid}", autoload_with=engine)
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
+Base = declarative_base()
+
+class Historico(Base):
+    __table__ = historico_tbl
+
+class Contatos(Base):
+    __table__ = contatos_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
 
 print("Sucesso! Inicializando migração de Históricos...")
 
@@ -46,7 +51,7 @@ not_inserted_cont = 0
 
 for idx, row in df.iterrows():
 
-    if idx % 500 == 0 or idx == len(df):
+    if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
     # record_id = verify_nan(row['ID_Anam'])
@@ -58,7 +63,7 @@ for idx, row in df.iterrows():
     #     not_inserted_data.append(row_dict)
     #     continue
 
-    # existing_record = exists(session, record_id, "Id do Histórico", HistoricoClientes)
+    # existing_record = exists(session, record_id, "Id do Histórico", Historico)
     # if existing_record:
     #     not_inserted_cont += 1
     #     row_dict = row.to_dict()
@@ -68,7 +73,7 @@ for idx, row in df.iterrows():
     #     continue
 
     record = verify_nan(row['Texto_Anamnese'])
-    if record == "":
+    if record == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico vazio ou inválido'
@@ -93,10 +98,10 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     
-    new_record = HistoricoClientes(
-        Histórico=record,
-        Data=date
+    new_record = Historico(
+        Data=date,
     )
+    setattr(new_record, "Histórico", bindparam(None, value=record, type_=UnicodeText()))
     # setattr(new_record, "Id do Histórico", record_id)
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)

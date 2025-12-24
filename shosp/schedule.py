@@ -50,7 +50,7 @@ id_scheduling_cont = 0
 
 for _, row in df.iterrows():
 
-    id_scheduling_cont += 1
+    id_scheduling_cont -= 1
 
     if exists(session, id_scheduling_cont, 'Id do Agendamento', Agenda):
         not_inserted_cont += 1

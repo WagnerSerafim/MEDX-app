@@ -5,7 +5,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import create_log, verify_nan
-import datetime
+from datetime import datetime
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -30,7 +30,7 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/receituario_cliente.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/tblReceituario.xlsx')
 
 df = pd.read_excel(todos_arquivos[0])
 df = df.replace('None', '')

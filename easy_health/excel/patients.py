@@ -1,8 +1,7 @@
 import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
 from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
@@ -18,15 +17,19 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Contatos(Base):
+    __table__ = contatos_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-Contatos = getattr(Base.classes, "Contatos")
-
 print("Sucesso! Inicializando migração de Contatos...")
+
 
 extension_file = glob.glob(f'{path_file}/dados.xlsx')
 
@@ -47,14 +50,14 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    if row['CODIGO'] in [None, '', 'NULL', 'None']:
+    if row['CÓDIGO'] in [None, '', 'NULL', 'None']:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente vazio'
         not_inserted_data.append(row_dict)
         continue
     else:
-        id_patient = row['CODIGO']
+        id_patient = row['CÓDIGO']
 
     existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
     if existing_record:
@@ -64,7 +67,6 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    
     if row['NOME'] == None or row['NOME'] == '' or row['NOME'] == 'None':
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -88,17 +90,17 @@ for idx, row in df.iterrows():
     email = verify_nan(row['EMAIL'])
     cpf = verify_nan(row['CPF'])
     rg = verify_nan(row['RG'])
-    telephone = ''
+    telephone = None
     cellphone = verify_nan(row['TELEFONE'])
     cep = verify_nan(row['CEP'])
-    complement = ''
+    complement = None
     neighbourhood = verify_nan(row['BAIRRO'])
     city = verify_nan(row['CIDADE'])
-    state = ''
-    occupation = ''
-    mother = ''
-    father = ''
-    observation = ''
+    state = None
+    occupation = None
+    mother = None
+    father = None
+    observation = None
 
 
     address = verify_nan(row['RUA'])

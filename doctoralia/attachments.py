@@ -1,33 +1,44 @@
+from datetime import datetime
+import glob
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+import re
+from sqlalchemy import MetaData, Table, UnicodeText, bindparam, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.exc import DataError, IntegrityError
 import pandas as pd
 import urllib
-from utils.utils import create_log
+from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
+import csv
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
-base_path = input("Informe o caminho da pasta que contém os arquivos: ")
+path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 print("Conectando no Banco de Dados...")
+
 DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
+
 engine = create_engine(DATABASE_URL)
 
-Base = automap_base()
-Base.prepare(autoload_with=engine)
+metadata = MetaData()
+historico_tbl = Table("Histórico de Clientes", metadata, schema=f"schema_{sid}", autoload_with=engine)
+
+Base = declarative_base()
+
+class Historico(Base):
+    __table__ = historico_tbl
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
+print("Sucesso! Inicializando migração de Histórico...")
 
-patientfiles_dirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d)) and d.startswith("668")]
+patientfiles_dirs = [d for d in os.listdir(path_file) if os.path.isdir(os.path.join(path_file, d))]
 if not patientfiles_dirs:
     print("Nenhum diretório PatientFiles_xxx encontrado no caminho informado.")
     exit(1)
-root_folder = os.path.join(base_path, patientfiles_dirs[0])
+root_folder = os.path.join(path_file, patientfiles_dirs[0])
 print(f"Usando diretório de anexos: {root_folder}")
 
 log_folder = root_folder
@@ -54,10 +65,10 @@ for pasta_id in os.listdir(root_folder):
         classe = f"{pasta_id}/{nome_arquivo}"
 
         try:
-            new_record = HistoricoClientes(
-                Histórico=record,
-                Data=date
+            new_record = Historico(
+                Data=date,
             )
+            setattr(new_record, "Histórico", bindparam(None, value=record, type_=UnicodeText()))
             setattr(new_record, "Id do Histórico", id_record)
             setattr(new_record, "Id do Cliente", id_patient)
             setattr(new_record, "Id do Usuário", 0)
