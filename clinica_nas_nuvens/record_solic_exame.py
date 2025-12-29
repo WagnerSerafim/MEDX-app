@@ -34,16 +34,16 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Histórico...")
 
-todos_arquivos = glob.glob(f'{path_file}/PRESCRICAO.csv')
+todos_arquivos = glob.glob(f'{path_file}/SOLICITACAO_EXAME.csv')
 prontuario_files = glob.glob(f'{path_file}/PRONTUARIO.csv')
 pront_detalhes_files = glob.glob(f'{path_file}/PRONTUARIO_DETALHE.csv')
-presc_grupo_files = glob.glob(f'{path_file}/PRESCRICAO_GRUPO.csv')
+solic_exame_grupo_files = glob.glob(f'{path_file}/SOLICITACAO_EXAME_GRUPO.csv')
 
 csv.field_size_limit(1000000)
 df = pd.read_csv(todos_arquivos[0], sep=',', encoding='utf-8', quotechar='"', on_bad_lines='skip')
 df_prontuario = pd.read_csv(prontuario_files[0], sep=',', encoding='utf-8', quotechar='"')
 df_detalhes = pd.read_csv(pront_detalhes_files[0], sep=',', encoding='utf-8', quotechar='"')
-df_presc_grupo = pd.read_csv(presc_grupo_files[0], sep=',', encoding='utf-8', quotechar='"')
+df_solic_exame_grupo = pd.read_csv(solic_exame_grupo_files[0], sep=',', encoding='utf-8', quotechar='"')
 
 prontario_lookup = {}
 
@@ -58,7 +58,7 @@ for idx, row in df_detalhes.iterrows():
     detalhes_lookup[row['codigo']] = verify_nan(row['codprontuario'])
 
 grupo_lookup = {}
-for idx, row in df_presc_grupo.iterrows():
+for idx, row in df_solic_exame_grupo.iterrows():
     grupo_lookup[row['codigo']] = verify_nan(row['coddetalhe'])
 
 log_folder = path_file
@@ -86,7 +86,7 @@ for idx, row in df.iterrows():
     if id_detalhe is None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Detalhe não encontrado em PRESCRICAO_GRUPO'
+        row_dict['Motivo'] = 'Id do Detalhe não encontrado em SOLICITACAO_EXAME_GRUPO'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
@@ -112,7 +112,7 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_record = verify_nan(row['codprescricao'])
+    id_record = verify_nan(row['codsolicitacaoexame'])
     if id_record is None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -129,7 +129,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    record = verify_nan(row['texto'])
+    record = verify_nan(row['descricao'])
     if record is None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -195,5 +195,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_PRESCRICAO.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_PRESCRICAO.xlsx")
+create_log(log_data, log_folder, "log_inserted_SOLICITACAO_EXAME.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_SOLICITACAO_EXAME.xlsx")

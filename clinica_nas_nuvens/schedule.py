@@ -110,8 +110,12 @@ for idx, row in df.iterrows():
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
-    if id_user == 16886915:
-        id_user = 671165402
+    if id_user == 17142180:
+        id_user = 1779183814
+    if id_user == 17142842:
+        id_user = 636461978
+    if id_user == 19912750:
+        id_user = 543146048
 
     patient = exists(session, id_patient, "Id do Cliente", Contatos)
     if not patient:

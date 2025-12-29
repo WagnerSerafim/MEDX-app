@@ -34,32 +34,20 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Histórico...")
 
-todos_arquivos = glob.glob(f'{path_file}/PRESCRICAO.csv')
-prontuario_files = glob.glob(f'{path_file}/PRONTUARIO.csv')
-pront_detalhes_files = glob.glob(f'{path_file}/PRONTUARIO_DETALHE.csv')
-presc_grupo_files = glob.glob(f'{path_file}/PRESCRICAO_GRUPO.csv')
+todos_arquivos = glob.glob(f'{path_file}/ARQUIVO.csv')
+pasta_files = glob.glob(f'{path_file}/PASTA_ARQUIVO.csv')
 
 csv.field_size_limit(1000000)
-df = pd.read_csv(todos_arquivos[0], sep=',', encoding='utf-8', quotechar='"', on_bad_lines='skip')
-df_prontuario = pd.read_csv(prontuario_files[0], sep=',', encoding='utf-8', quotechar='"')
-df_detalhes = pd.read_csv(pront_detalhes_files[0], sep=',', encoding='utf-8', quotechar='"')
-df_presc_grupo = pd.read_csv(presc_grupo_files[0], sep=',', encoding='utf-8', quotechar='"')
+df = pd.read_csv(todos_arquivos[0], sep=',', encoding='utf-8', quotechar='"')
+df_pasta = pd.read_csv(pasta_files[0], sep=',', encoding='utf-8', quotechar='"')
+pasta_lookup = {}
 
-prontario_lookup = {}
-
-for idx, row in df_prontuario.iterrows():
-    prontario_lookup[row['codprontuario']] = {
-        'id_patient': verify_nan(row['codPaciente']),
-        'data': verify_nan(row['datahoracriacao'])
+for idx, row in df_pasta.iterrows():
+    pasta_lookup[row['codpastaarquivo']] = {
+        'id_patient': verify_nan(row['codpaciente']),
+        'data': verify_nan(row['dataHoraCriacao']),
+        'nome_arquivo': verify_nan(row['nome']),
     }
-
-detalhes_lookup = {}
-for idx, row in df_detalhes.iterrows():
-    detalhes_lookup[row['codigo']] = verify_nan(row['codprontuario'])
-
-grupo_lookup = {}
-for idx, row in df_presc_grupo.iterrows():
-    grupo_lookup[row['codigo']] = verify_nan(row['coddetalhe'])
 
 log_folder = path_file
 
@@ -73,38 +61,11 @@ not_inserted_cont = 0
 
 for idx, row in df.iterrows():
 
-    id_grupo = verify_nan(row['codgrupo'])
-    if id_grupo is None:
+    pasta_infos = pasta_lookup.get(row['codpastaarquivo'])
+    if not pasta_infos:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Grupo vazio'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(row_dict)
-        continue
-
-    id_detalhe = grupo_lookup.get(id_grupo)
-    if id_detalhe is None:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Detalhe não encontrado em PRESCRICAO_GRUPO'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(row_dict)
-        continue
-
-    id_pront = detalhes_lookup.get(id_detalhe)
-    if id_pront is None:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Prontuário vazio'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(row_dict)
-        continue
-
-    prontuario_infos = prontario_lookup.get(id_pront)
-    if not prontuario_infos:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Prontuário não encontrado em PRONTUARIO'
+        row_dict['Motivo'] = 'Id da Pasta de Arquivos vazio'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
@@ -112,7 +73,7 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_record = verify_nan(row['codprescricao'])
+    id_record = verify_nan(row['codarquivo'])
     if id_record is None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -129,7 +90,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    record = verify_nan(row['texto'])
+    record = pasta_infos.get('nome_arquivo')
     if record is None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -138,7 +99,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    date_str = prontuario_infos.get('data')
+    date_str = pasta_infos.get('data')
     if date_str is None:
         print("Data não encontrada, 1900-01-01 será usada.")
         date = '1900-01-01 00:00'
@@ -157,11 +118,27 @@ for idx, row in df.iterrows():
             except:
                 date = '1900-01-01 00:00'
 
-    id_patient = prontuario_infos.get('id_patient')
+    id_patient = pasta_infos.get('id_patient')
     if id_patient is None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do paciente vazio'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+
+    classe = verify_nan(row['urlstorage'][1:])
+    if classe is None:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Classe vazia'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+    if len(classe) > 100:
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Classe maior que 100 caracteres'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
@@ -173,6 +150,7 @@ for idx, row in df.iterrows():
     setattr(new_record, "Id do Histórico", id_record)
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
+    setattr(new_record, "Classe", classe)
     
     log_data.append({
         "Id do Histórico": id_record,
@@ -195,5 +173,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_PRESCRICAO.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_PRESCRICAO.xlsx")
+create_log(log_data, log_folder, "log_inserted_indexes_ARQUIVOS.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_indexes_ARQUIVOS.xlsx")
