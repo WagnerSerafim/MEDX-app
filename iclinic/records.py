@@ -137,118 +137,6 @@ def find_record_csv(path_folder):
 
     return csv_file
 
-
-    HistoricoClientes = getattr(base.classes, "Histórico de Clientes")
-
-    print("Começando a migração de históricos IClinic...")
-
-    log_folder = path_folder
-
-    if not os.path.exists(log_folder):
-        os.makedirs(log_folder)
-
-    records_csv = find_record_csv(path_folder)
-
-    csv.field_size_limit(10**6)
-    df = pd.read_csv(records_csv, sep=",", engine='python', quotechar='"')
-
-    df["eventblock_pack"] = df["eventblock_pack"].astype(str).str.replace(r'^json::', '', regex=True)
-
-    log_data = []
-    inserted_cont=0
-    not_inserted_data = []
-    not_inserted_cont = 0
-
-    for index, row in df.iterrows():
-
-        exists_row = exists(session, row["pk"], "Id do Histórico", HistoricoClientes)
-        if exists_row:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id já existe no banco de dados'
-            not_inserted_data.append(row_dict)
-            continue
-        else:
-            id_record = row["pk"]
-
-        date_str = f'{row["date"]} {row["start_time"]}'
-        if is_valid_date(date_str, '%Y-%m-%d %H:%M:%S'):
-            date = date_str
-        else:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Data ou Hora inválida'
-            not_inserted_data.append(row_dict)
-            continue
-
-        if not pd.isna(row["eventblock_pack"]) and isinstance(row["eventblock_pack"], str):
-            try:
-                json_data = json.loads(row["eventblock_pack"])
-                record, error_message = get_record(json_data)
-
-                if record is None or record == "":
-                    not_inserted_cont += 1
-                    row_dict = row.to_dict()
-                    row_dict['Motivo'] = error_message
-                    not_inserted_data.append(row_dict)
-                    continue
-            
-            except json.JSONDecodeError:
-                print(f"Erro ao decodificar JSON na linha {index + 2}. Pulando...")
-                not_inserted_cont += 1
-                row_dict = row.to_dict()
-                row_dict['Motivo'] = 'Erro ao decodificar JSON'
-                not_inserted_data.append(row_dict)
-                continue
-        else:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Campo eventblock_pack vazio ou inválido'
-            continue
-        
-        if row['patient_id'] == "" or row['patient_id'] == None or row['patient_id'] == 'None':
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id do paciente vazio'
-            not_inserted_data.append(row_dict)
-            continue
-        else:
-            id_patient = row["patient_id"]
-
-        new_record = HistoricoClientes(
-            Histórico=record,
-            Data=date,
-        )
-
-        setattr(new_record, "Id do Cliente", id_patient)
-        setattr(new_record, "Id do Histórico", id_record)
-        setattr(new_record, "Id do Usuário", 0)
-        
-        log_data.append({
-            "Id do Histórico": id_record,
-            "Id do Cliente": id_patient,
-            "Data": date,
-            "Histórico": record,
-            "Id do Usuário": 0,
-            })
-
-        session.add(new_record)
-        inserted_cont+=1
-
-        if inserted_cont % 10000 == 0:
-            session.commit()
-
-    session.commit()
-
-    print(f"{inserted_cont} novos históricos foram inseridos com sucesso!")
-    if not_inserted_cont > 0:
-        print(f"{not_inserted_cont} históricos não foram inseridos, verifique o log para mais detalhes.")
-
-    session.close()
-
-    create_log(log_data, log_folder, "log_inserted_record_records.xlsx")
-    create_log(not_inserted_data, log_folder, "log_not_inserted_record_records.xlsx")
-
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase = input("Informe o DATABASE: ")
@@ -272,7 +160,7 @@ print("Sucesso! Inicializando migração de Históricos...")
 
 csv_files = find_record_csv(path_file)
 
-csv.field_size_limit(100000000000000)
+csv.field_size_limit(1000000)
 
 log_folder = path_file
 

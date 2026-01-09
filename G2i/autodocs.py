@@ -9,10 +9,11 @@ import urllib
 from utils.utils import create_log, verify_nan
 from datetime import datetime
 
+
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
-path_folder = input("Informe o caminho do arquivo: ")
+path_file = input("Informe o caminho do arquivo: ")
 
 print("Iniciando a conexão com o banco de dados...")
 
@@ -31,14 +32,13 @@ class Autodocs(Base):
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-print("Sucesso! Inicializando migração de Receituários...")
+print("Sucesso! Inicializando migração de Autodocs Textos...")
 
-csv.field_size_limit(10000000)
-todos_arquivos = glob.glob(f'{path_folder}/Protocolos*.csv')
+cadastro_file = glob.glob(f'{path_file}/textos.json')
 
-df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar='"', encoding='latin1')
-
-log_folder = path_folder
+with open(cadastro_file[0], 'r') as f:
+    df = pd.read_json(f)
+log_folder = path_file
 
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
@@ -48,7 +48,8 @@ inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
 
-nome_biblioteca_pai = f"Protocolos Migração"
+data_hoje = datetime.now().strftime("%d/%m/%Y")
+nome_biblioteca_pai = f"Documentos Migração {data_hoje}"
 
 autodocs_pai = Autodocs(Pai=0, Biblioteca=nome_biblioteca_pai)
 session.add(autodocs_pai)
@@ -57,47 +58,43 @@ id_pai = getattr(autodocs_pai, "Id do Texto")
 
 print(f"Id do Texto do AUTODOCS pai criado: {id_pai}")
 
-print("Iniciando a inserção dos Autodocs...")
-
 for idx, row in df.iterrows():
 
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    library = verify_nan(row['Nome'])
-    if not library:
+    text = verify_nan(row["texto_html"])
+    if text == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Nome da Biblioteca vazio'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        row_dict['Motivo'] = 'Texto vazio ou nulo'
         not_inserted_data.append(row_dict)
         continue
 
-    text = verify_nan(row['Conteudo'])
-    if not text:
+    name = verify_nan(row["codigo"])
+    if name == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Conteúdo vazio'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        row_dict['Motivo'] = 'Nome da fórmula vazio ou nulo'
         not_inserted_data.append(row_dict)
         continue
 
     new_autodocs = Autodocs(
-        Biblioteca = library,
-        Pai = id_pai
+        Texto=text,
+        Biblioteca=name,
+        Pai=id_pai
     )
-    setattr(new_autodocs, "Texto", bindparam(None, value=text, type_=UnicodeText()))
 
     log_data.append({
         "Texto": text,
-        "Biblioteca": library,
+        "Biblioteca": name,
         "Pai": id_pai
     })
 
     session.add(new_autodocs)
     inserted_cont += 1
 
-    if inserted_cont % 100 == 0:
+    if inserted_cont % 1000 == 0:
         session.commit()
 
 session.commit()
@@ -107,5 +104,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_autodocs_Protocolos.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_autodocs_Protocolos.xlsx")
+create_log(log_data, log_folder, "log_inserted_autodocs_textos.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_autodocs_textos.xlsx")

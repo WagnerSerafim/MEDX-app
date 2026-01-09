@@ -45,7 +45,7 @@ print("Sucesso! Inicializando migração de Contatos...")
 
 csv_files = find_patient_csv(path_file)
 
-csv.field_size_limit(100000000000000)
+csv.field_size_limit(1000000)
 
 log_folder = path_file
 
@@ -157,6 +157,8 @@ for index, row in df.iterrows():
         "Estado Residencial": state,
         "País Residencial": country
     })
+
+    
 
     session.add(novo_contato)
 

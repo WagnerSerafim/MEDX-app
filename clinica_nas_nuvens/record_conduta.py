@@ -34,18 +34,16 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Histórico...")
 
-todos_arquivos = glob.glob(f'{path_file}/PRESCRICAO.csv')
+todos_arquivos = glob.glob(f'{path_file}/CONDUTA.csv')
 prontuario_files = glob.glob(f'{path_file}/PRONTUARIO.csv')
-pront_detalhes_files = glob.glob(f'{path_file}/PRONTUARIO_DETALHE.csv')
-presc_grupo_files = glob.glob(f'{path_file}/PRESCRICAO_GRUPO.csv')
+details_files = glob.glob(f'{path_file}/PRONTUARIO_DETALHE.csv')
 
 csv.field_size_limit(1000000)
-df = pd.read_csv(todos_arquivos[0], sep=',', encoding='utf-8', quotechar='"', on_bad_lines='skip')
+df = pd.read_csv(todos_arquivos[0], sep=',', encoding='utf-8', quotechar='"', engine='python', on_bad_lines='warn')
 df_prontuario = pd.read_csv(prontuario_files[0], sep=',', encoding='utf-8', quotechar='"')
-df_detalhes = pd.read_csv(pront_detalhes_files[0], sep=',', encoding='utf-8', quotechar='"')
-df_presc_grupo = pd.read_csv(presc_grupo_files[0], sep=',', encoding='utf-8', quotechar='"')
-
+df_details = pd.read_csv(details_files[0], sep=',', encoding='utf-8', quotechar='"')
 prontario_lookup = {}
+details_lookup = {}
 
 for idx, row in df_prontuario.iterrows():
     prontario_lookup[row['codprontuario']] = {
@@ -53,13 +51,8 @@ for idx, row in df_prontuario.iterrows():
         'data': verify_nan(row['datahoracriacao'])
     }
 
-detalhes_lookup = {}
-for idx, row in df_detalhes.iterrows():
-    detalhes_lookup[row['codigo']] = verify_nan(row['codprontuario'])
-
-grupo_lookup = {}
-for idx, row in df_presc_grupo.iterrows():
-    grupo_lookup[row['codigo']] = verify_nan(row['coddetalhe'])
+for idx, row in df_details.iterrows():
+    details_lookup[row['codigo']] = verify_nan(row['codprontuario'])
 
 log_folder = path_file
 
@@ -73,34 +66,15 @@ not_inserted_cont = 0
 
 for idx, row in df.iterrows():
 
-    id_grupo = verify_nan(row['codgrupo'])
-    if id_grupo is None:
+    details_infos = details_lookup.get(row['coddetalhe'])
+    if not details_infos:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Grupo vazio'
+        row_dict['Motivo'] = 'Id do Prontuário Detalhes vazio'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
-
-    id_detalhe = grupo_lookup.get(id_grupo)
-    if id_detalhe is None:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Detalhe não encontrado em PRESCRICAO_GRUPO'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(row_dict)
-        continue
-
-    id_pront = detalhes_lookup.get(id_detalhe)
-    if id_pront is None:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Prontuário vazio'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(row_dict)
-        continue
-
-    prontuario_infos = prontario_lookup.get(id_pront)
+    prontuario_infos = prontario_lookup.get(details_infos)
     if not prontuario_infos:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -112,7 +86,7 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_record = verify_nan(row['codprescricao'])
+    id_record = verify_nan(row['codigo'])
     if id_record is None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -129,14 +103,16 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    record = verify_nan(row['texto'])
-    if record is None:
+    conduta = verify_nan(row['observacoes'])
+    if conduta is None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico vazio ou inválido'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
+
+    record = f"CONDUTA: <br>{conduta}"
 
     date_str = prontuario_infos.get('data')
     if date_str is None:
@@ -195,5 +171,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_PRESCRICAO.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_PRESCRICAO.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_CONDUTA.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_CONDUTA.xlsx")

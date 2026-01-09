@@ -19,22 +19,25 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 engine = create_engine(DATABASE_URL)
 metadata = MetaData()
 agenda_tbl = Table("Agenda", metadata, schema=f"schema_{sid}", autoload_with=engine)
+contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with=engine)
 
 Base = declarative_base()
 
 class Agenda(Base):
     __table__ = agenda_tbl
 
+class Contatos(Base):
+    __table__ = contatos_tbl
+
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
-csv.field_size_limit(10000000)
+todos_arquivos = glob.glob(f'{path_file}/tb_consultas.json')
 
-todos_arquivos = glob.glob(f'{path_file}/agenda*.csv')
-
-df = pd.read_csv(todos_arquivos[0], sep=',', engine='python', quotechar='"')
+with open(todos_arquivos[0], 'r', encoding='utf-8') as f:
+    df = pd.read_json(todos_arquivos[0])
 
 log_folder = path_file
 
@@ -51,17 +54,17 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
     
-    user = row['professional']
-    if user == 'Maria Luiza Wanderley Da Silva':
-        user = 1
-    else:
+    user = 1
+
+    id_schedule = verify_nan(row["CODCONSULTA"])
+    if id_schedule == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Usuário inválido'
+        row_dict['Motivo'] = 'Id do agendamento vazio ou inválido'
         not_inserted_data.append(row_dict)
         continue
 
-    id_patient = verify_nan(row["client_id"])
+    id_patient = verify_nan(row["CODPACIENTE"])
     if id_patient == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -69,19 +72,20 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     
-    observation = verify_nan(row['attendance'])
+    observation = verify_nan(row['OBSERVACAO'])
     if observation == None:
         observation = ''
 
-    patient = verify_nan(row["name"])
+    patient = exists(session, id_patient, "Id do Cliente", Contatos)
     if not patient:
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Sem paciente vinculado'
         not_inserted_data.append(row_dict)
         continue
+    patient_name = getattr(patient, "Nome")
 
-    description = f"{patient} - {observation}".strip()
+    description = f"{patient_name} - {observation}".strip()
     if description == '':
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -89,22 +93,20 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    date_obj = verify_nan(row['date'][:10])
-    hour_start_obj = verify_nan(row['date'][11:16])
-    hour_end_obj = verify_nan(row['date'][19:24])
-    if date_obj == None or hour_start_obj == None or hour_end_obj == None:
+    date = verify_nan(row['DATACONSULTA'])
+    hour = verify_nan(row['HORACONSULTA'])
+    if date == None or hour == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Data do agendamento ou horário vazio ou inválido'
         not_inserted_data.append(row_dict)
         continue
     else:
-        start_time_obj = f"{date_obj} {hour_start_obj}"
-        start_time_obj = datetime.strptime(start_time_obj, '%d/%m/%Y %H:%M')
+        start_time_obj = f"{date} {hour}"
+        start_time_obj = datetime.strptime(start_time_obj, '%Y-%m-%d %H:%M')
         start_time = start_time_obj.strftime('%Y-%m-%d %H:%M')
 
-        end_time_obj = f"{date_obj} {hour_end_obj}"
-        end_time_obj = datetime.strptime(end_time_obj, '%d/%m/%Y %H:%M')
+        end_time_obj = start_time_obj + timedelta(minutes=30)
         end_time = end_time_obj.strftime('%Y-%m-%d %H:%M')
 
         if not is_valid_date(start_time, '%Y-%m-%d %H:%M') or not is_valid_date(end_time, '%Y-%m-%d %H:%M'):
@@ -114,7 +116,6 @@ for idx, row in df.iterrows():
             not_inserted_data.append(row_dict)
             continue
 
-
     new_schedulling = Agenda(
         Descrição=description,
         Início=start_time,
@@ -122,12 +123,12 @@ for idx, row in df.iterrows():
         Status=1,
     )
 
-    # setattr(new_schedulling, "Id do Agendamento", row["id"])
+    setattr(new_schedulling, "Id do Agendamento", id_schedule)
     setattr(new_schedulling, "Vinculado a", id_patient)
     setattr(new_schedulling, "Id do Usuário", user)
     
     log_data.append({
-        # "Id do Agendamento": row["id"],
+        "Id do Agendamento": id_schedule,
         "Vinculado a": id_patient,
         "Id do Usuário": user,
         "Início": start_time,
@@ -151,5 +152,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_t_agendaconsultas.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_t_agendaconsultas.xlsx")
+create_log(log_data, log_folder, "log_inserted_schedule_tb_consultas.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_schedule_tb_consultas.xlsx")

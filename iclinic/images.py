@@ -55,7 +55,7 @@ print("Sucesso! Inicializando migração de Históricos...")
 
 csv_files = find_record_csv(path_file)
 
-csv.field_size_limit(100000000000000)
+csv.field_size_limit(1000000)
 
 df = pd.read_csv(csv_files, sep=None, engine='python')
 

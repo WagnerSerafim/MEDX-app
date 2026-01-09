@@ -5,7 +5,7 @@ from sqlalchemy import MetaData, Table, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, limpar_cpf, limpar_numero, truncate_value, verify_nan
+from utils.utils import clean_string, is_valid_date, exists, create_log, limpar_cpf, limpar_numero, truncate_value, verify_nan
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -32,9 +32,9 @@ session = SessionLocal()
 print("Sucesso! Inicializando migração de Contatos...")
 
 
-extension_file = glob.glob(f'{path_file}/pacientes*.csv')
+extension_file = glob.glob(f'{path_file}/patients*.xlsx')
 
-df = pd.read_csv(extension_file[0], sep=';', encoding='utf-8', quotechar='"')
+df = pd.read_excel(extension_file[0])
 
 log_folder = path_file
 
@@ -42,7 +42,7 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont=0
+inserted_cont = 0
 not_inserted_data = []
 not_inserted_cont = 0
 
@@ -51,14 +51,15 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    if row['CÓDIGO'] in [None, '', 'NULL', 'None']:
+    id_patient = limpar_numero(verify_nan(row['FICHAPACIENTEID']))
+    if id_patient is None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente vazio'
         not_inserted_data.append(row_dict)
         continue
-    else:
-        id_patient = row['CÓDIGO']
+
+    ref = limpar_numero(verify_nan(row['PACIENTEID']))
 
     existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
     if existing_record:
@@ -68,16 +69,16 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    if row['NOME'] == None or row['NOME'] == '' or row['NOME'] == 'None':
+    name = verify_nan(row['NOME'])
+    if name is None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Nome do Paciente vazio'
         not_inserted_data.append(row_dict)
         continue
-    else:
-        name = row['NOME']
+    clean_name = clean_string(name)
 
-    birthday_str = verify_nan(row['NASCIMENTO'])
+    birthday_str = verify_nan(row['DATANASCIMENTO'])
     if birthday_str is None:
         birthday = '1900-01-01'
     else:
@@ -91,37 +92,43 @@ for idx, row in df.iterrows():
             birthday = birthday_obj.strftime("%Y-%m-%d")
             if not is_valid_date(birthday, "%Y-%m-%d"):
                 birthday = '1900-01-01'
-    
 
-    if row['SEXO'] == 'f':
+    if row['SEXO'] == 'Feminino':
         sex = 'F'
     else:
         sex = 'M'
     
+    telephone = verify_nan(row['TELEFONE'])
+    if telephone:
+        telephone_ddd = verify_nan(row['TELEFONEDDD'])
+        telephone = f"({telephone_ddd}) {telephone}" if telephone_ddd else telephone
+    
+    cellphone = verify_nan(row['CELULAR'])
+    if cellphone:
+        cellphone_ddd = verify_nan(row['CELULARDDD'])
+        cellphone = f"({cellphone_ddd}) {cellphone}" if cellphone_ddd else cellphone
+
     email = verify_nan(row['EMAIL'])
-    cpf = limpar_cpf(verify_nan(row['CPF']))
+    cpf = limpar_cpf(verify_nan(row['CPFCNPJ']))
     rg = limpar_numero(verify_nan(row['RG']))
-    telephone = None
-    cellphone = limpar_numero(verify_nan(row['TELEFONE']))
     cep = limpar_numero(verify_nan(row['CEP']))
     complement = verify_nan(row['COMPLEMENTO'])
     neighbourhood = verify_nan(row['BAIRRO'])
     city = verify_nan(row['CIDADE'])
-    state = None
-    occupation = None
-    mother = None
-    father = None
-    observation = verify_nan(row['ANOTAÇÃO'])
+    state = verify_nan(row['ESTADO'])
+    occupation = verify_nan(row['PROFISSAO'])
+    mother = verify_nan(row['NOMEMAE'])
+    father = verify_nan(row['NOMEPAI'])
+    observation = verify_nan(row['OBSERVACAO'])
 
-
-    address = verify_nan(row['RUA'])
+    address = verify_nan(row['ENDERECO'])
     if address:
-        num = limpar_numero(verify_nan(row['NÚMERO']))
+        num = limpar_numero(verify_nan(row['NUMERO']))
         if num:
             address = f"{address} {num}"
 
     new_patient = Contatos(
-        Nome=truncate_value(name, 50),
+        Nome=truncate_value(clean_name, 50),
         Nascimento=birthday,
         Sexo=sex,
         Celular=truncate_value(cellphone, 25),
@@ -130,6 +137,8 @@ for idx, row in df.iterrows():
 
     setattr(new_patient, "Id do Cliente", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
+    setattr(new_patient, "Observação", truncate_value(observation, 255))
+    setattr(new_patient, "Referências", ref)
     setattr(new_patient, "Cep Residencial", truncate_value(cep, 10))
     setattr(new_patient, "Endereço Residencial", truncate_value(address, 50))
     setattr(new_patient, "Endereço Comercial", truncate_value(complement, 50))

@@ -46,7 +46,7 @@ print("Sucesso! Inicializando migração de Agenda...")
 
 csv_files = find_scheduling_csv(path_file)
 
-csv.field_size_limit(100000000000000)
+csv.field_size_limit(1000000)
 
 df = pd.read_csv(csv_files, sep=',', engine='python', dtype=str)
 

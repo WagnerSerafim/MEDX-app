@@ -32,7 +32,7 @@ session = SessionLocal()
 print("Sucesso! Inicializando migração de Contatos...")
 
 
-extension_file = glob.glob(f'{path_file}/pacientes*.csv')
+extension_file = glob.glob(f'{path_file}/Paciente.csv')
 
 df = pd.read_csv(extension_file[0], sep=';', encoding='utf-8', quotechar='"')
 
@@ -51,14 +51,13 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    if row['CÓDIGO'] in [None, '', 'NULL', 'None']:
+    id_patient = verify_nan(row['CODIGO'])
+    if id_patient is None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente vazio'
         not_inserted_data.append(row_dict)
         continue
-    else:
-        id_patient = row['CÓDIGO']
 
     existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
     if existing_record:
@@ -68,14 +67,13 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    if row['NOME'] == None or row['NOME'] == '' or row['NOME'] == 'None':
-        not_inserted_cont +=1
+    name = verify_nan(row['NOME'])
+    if not name:
+        not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Nome do Paciente vazio'
+        row_dict['Motivo'] = 'Nome vazio'
         not_inserted_data.append(row_dict)
         continue
-    else:
-        name = row['NOME']
 
     birthday_str = verify_nan(row['NASCIMENTO'])
     if birthday_str is None:
@@ -93,7 +91,7 @@ for idx, row in df.iterrows():
                 birthday = '1900-01-01'
     
 
-    if row['SEXO'] == 'f':
+    if row['SEXO'] == 'F':
         sex = 'F'
     else:
         sex = 'M'
@@ -101,22 +99,30 @@ for idx, row in df.iterrows():
     email = verify_nan(row['EMAIL'])
     cpf = limpar_cpf(verify_nan(row['CPF']))
     rg = limpar_numero(verify_nan(row['RG']))
-    telephone = None
-    cellphone = limpar_numero(verify_nan(row['TELEFONE']))
+    telephone = limpar_numero(verify_nan(row['TELEFONE_RESIDENCIAL']))
+    cellphone = limpar_numero(verify_nan(row['TELEFONE_CELULAR']))
     cep = limpar_numero(verify_nan(row['CEP']))
     complement = verify_nan(row['COMPLEMENTO'])
     neighbourhood = verify_nan(row['BAIRRO'])
     city = verify_nan(row['CIDADE'])
     state = None
-    occupation = None
-    mother = None
-    father = None
-    observation = verify_nan(row['ANOTAÇÃO'])
+    occupation = verify_nan(row['PROFISSAO'])
 
+    grau_parentesco = verify_nan(row['PARENTE_1_PARENTESCO'])
+    if grau_parentesco == 'MAE':
+        mother = verify_nan(row['PARENTE_1'])
+        father = None
+    elif grau_parentesco == 'PAI':
+        father = verify_nan(row['PARENTE_1'])
+        mother = None
+    else:
+        mother = None
+        father = None
 
-    address = verify_nan(row['RUA'])
+    observation = verify_nan(row['OBSERVACAO'])
+    address = verify_nan(row['LOGRADOURO'])
     if address:
-        num = limpar_numero(verify_nan(row['NÚMERO']))
+        num = limpar_numero(verify_nan(row['NUMERO']))
         if num:
             address = f"{address} {num}"
 
@@ -177,5 +183,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_patients_pacientes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_patients_pacientes.xlsx")
+create_log(log_data, log_folder, "log_inserted_patients.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_patients.xlsx")

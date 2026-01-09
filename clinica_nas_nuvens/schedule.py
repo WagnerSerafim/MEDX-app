@@ -174,5 +174,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_AGENDA.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_AGENDA.xlsx")
+create_log(log_data, log_folder, "log_inserted_schedule_AGENDA.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_schedule_AGENDA.xlsx")

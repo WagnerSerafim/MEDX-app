@@ -4,6 +4,24 @@ import re
 import pandas as pd
 import math
 import urllib
+import unicodedata
+
+def clean_string(value):
+    if value is None:
+        return None
+    
+    # Converte para string caso seja outro tipo
+    value = str(value)
+    
+    # Esta regex remove caracteres que estão fora do intervalo BMP (U+0000 a U+FFFF)
+    # Emojis e os blocos '🅃🄷' geralmente estão acima desse range.
+    # Também removemos caracteres de controle não imprimíveis.
+    printable_str = "".join(c for c in value if c.isprintable() and ord(c) <= 0xffff)
+    
+    # (Opcional) Remove espaços extras que sobraram
+    printable_str = " ".join(printable_str.split())
+    
+    return printable_str
 
 def connect_database():
     sid = input("Informe o SoftwareID: ")
