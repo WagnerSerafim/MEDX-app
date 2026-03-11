@@ -10,7 +10,6 @@ import urllib
 from utils.utils import create_log, verify_nan
 from datetime import datetime
 
-
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
 dbase= input("Informe o DATABASE: ")
@@ -30,14 +29,13 @@ session = SessionLocal()
 
 Autodocs = getattr(Base.classes, "Autodocs")
 
-print("Sucesso! Inicializando migração de Fórmulas...")
+print("Sucesso! Inicializando migração de Modelos...")
 
-csv.field_size_limit(10000000000000)
+csv.field_size_limit(100000000)
 
-todos_arquivos = glob.glob(f'{path_file}/formulas.csv')
+todos_arquivos = glob.glob(f'{path_file}/modelos*.csv')
 
-df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar="'", on_bad_lines='warn', escapechar='\\')
-df = df.replace('None', '')
+df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar='"', on_bad_lines='skip', escapechar='\\')
 
 log_folder = path_file
 
@@ -45,12 +43,12 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont=0
+inserted_cont = 0 
 not_inserted_data = []
 not_inserted_cont = 0
 
 data_hoje = datetime.now().strftime("%d/%m/%Y")
-nome_biblioteca_pai = f"Documentos Migração {data_hoje}"
+nome_biblioteca_pai = f"Modelos Migração {data_hoje}"
 
 autodocs_pai = Autodocs(Pai=0, Biblioteca=nome_biblioteca_pai)
 session.add(autodocs_pai)
@@ -64,7 +62,7 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    text = verify_nan(row["Descricao"])
+    text = verify_nan(row["TEXTO"])
     if text == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
@@ -73,11 +71,11 @@ for idx, row in df.iterrows():
         continue
         
 
-    name = verify_nan(row["Titulo"])
+    name = verify_nan(row["TÍTULO"])
     if name == None:
         not_inserted_cont += 1
         row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Nome da fórmula vazio ou nulo'
+        row_dict['Motivo'] = 'Nome do modelo vazio ou nulo'
         not_inserted_data.append(row_dict)
         continue
 
@@ -106,5 +104,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_formulas.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_formulas.xlsx")
+create_log(log_data, log_folder, "log_inserted_modelos.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_modelos.xlsx")

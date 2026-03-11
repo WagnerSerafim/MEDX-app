@@ -1,12 +1,12 @@
-from datetime import datetime
 import glob
-import json
 import os
-from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 import pandas as pd
 import urllib
-from utils.utils import is_valid_date, exists, create_log, verify_nan
+from utils.utils import exists, create_log, is_valid_date, verify_nan
+import html
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -18,21 +18,19 @@ DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.win
 
 engine = create_engine(DATABASE_URL)
 
-metadata = MetaData()
-historico_tbl = Table("Histórico de Clientes", metadata, schema=f"schema_{sid}", autoload_with=engine)
-
-Base = declarative_base()
-
-class Historico(Base):
-    __table__ = historico_tbl
+Base = automap_base()
+Base.prepare(autoload_with=engine)
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
+HistoricoClientes = getattr(Base.classes, "Histórico de Clientes")
+
 print("Sucesso! Inicializando migração de Históricos...")
 
-extension_file = glob.glob(f'{path_file}/prints*.xlsx')
-df = pd.read_excel(extension_file[0])
+todos_arquivos = glob.glob(f'{path_file}/arquivos.csv')
+
+df = pd.read_csv(todos_arquivos[0], sep=';')
 
 log_folder = path_file
 
@@ -40,74 +38,57 @@ if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont = 0
+inserted_cont=0
 not_inserted_data = []
 not_inserted_cont = 0
-id_record = -50000
 
 for idx, row in df.iterrows():
 
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_record -= 1
-    existing_record = exists(session, id_record, 'Id do Histórico', Historico)
-    if existing_record:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Histórico já existe no banco de dados'
-        not_inserted_data.append(row_dict)
-        continue
-
-    record = verify_nan(row['CONTEUDOIMPRESSO'])
-    if record == None:
+    if row['descricao_arquivo'] not in ['', None] and not pd.isna(row['descricao_arquivo']):
+        record = row['descricao_arquivo']
+    else:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Histórico vazio ou inválido'
         not_inserted_data.append(row_dict)
         continue
 
-    record = record.replace('_x000D_', '')
+    if is_valid_date(row['data_hora'], '%Y-%m-%d %H:%M:%S'):
+        date = row['data_hora']
 
-    date_str = verify_nan(row['DATA'])
-    if date_str in ['', None]:
-        date = '1900-01-01'
-    else:
-        try:
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-            date = date_obj.strftime('%Y-%m-%d %H:%M:%S')
-            if not is_valid_date(date, '%Y-%m-%d %H:%M:%S'):
-                date = '1900-01-01'
-        except TypeError:
-            date = date_str.strftime('%Y-%m-%d %H:%M:%S')
-            if not is_valid_date(date, '%Y-%m-%d %H:%M:%S'):
-                date = '1900-01-01'
-
-    id_patient = verify_nan(row['FICHAPACIENTEID'])
+    id_patient = verify_nan(row['paciente_id'])
     if id_patient in ['', None]:
         not_inserted_cont +=1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do paciente vazio'
         not_inserted_data.append(row_dict)
         continue
+
+    if row['nome_pasta'].startswith('A'):
+        image_path = f'Arquivos/{row["nome_arquivo"]}'
+    else:
+        image_path = f'Imagens/{row["nome_arquivo"]}'
     
-    new_record = Historico(
+    new_record = HistoricoClientes(
+        Histórico=record,
         Data=date,
+        Classe=image_path
     )
-    setattr(new_record, "Histórico", bindparam(None, value=record, type_=UnicodeText()))
-    setattr(new_record, "Id do Histórico", id_record)
     setattr(new_record, "Id do Cliente", id_patient)
     setattr(new_record, "Id do Usuário", 0)
     
     log_data.append({
-        "Id do Histórico": id_record,
         "Id do Cliente": id_patient,
         "Data": date,
         "Histórico": record,
         "Id do Usuário": 0,
+        "Classe": image_path
     })
     session.add(new_record)
-    inserted_cont+=1
+    inserted_cont += 1
 
     if inserted_cont % 1000 == 0:
         session.commit()
@@ -121,5 +102,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_prints.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_prints.xlsx")
+create_log(log_data, log_folder, "log_inserted_indexes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_indexes.xlsx")

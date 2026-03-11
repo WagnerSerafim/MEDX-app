@@ -37,7 +37,7 @@ print("Sucesso! Inicializando migração de Contatos...")
 csv.field_size_limit(1000000)
 extension_file = glob.glob(f'{path_file}/patients*.csv')
 
-df = pd.read_csv(extension_file[0], sep=';', engine='python', encoding='utf-16')
+df = pd.read_csv(extension_file[0], sep=';', engine='python', encoding='utf-8')
 
 log_folder = path_file
 

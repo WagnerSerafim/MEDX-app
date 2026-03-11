@@ -33,7 +33,7 @@ session = SessionLocal()
 print("Sucesso! Inicializando migração de Históricos...")
 
 csv.field_size_limit(10000000)
-todos_arquivos = glob.glob(f'{path_file}/Evoluções.csv')
+todos_arquivos = glob.glob(f'{path_file}/Evoluções.csv')
 print(todos_arquivos)
 
 df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar='"', encoding='latin1')

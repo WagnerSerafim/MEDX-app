@@ -6,7 +6,7 @@ from sqlalchemy import MetaData, Table, create_engine, bindparam, UnicodeText
 from sqlalchemy.orm import declarative_base, sessionmaker
 import pandas as pd
 import urllib
-from utils.utils import exists, create_log, is_valid_date, verify_nan
+from utils.utils import exists, create_log, is_valid_date
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -31,17 +31,16 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-todos_arquivos = glob.glob(f'{path_file}/prescrições*.csv')
+todos_arquivos = glob.glob(f'{path_file}/orientações*.csv')
 schedule_files = glob.glob(f'{path_file}/atendimento*.csv')
 
 df = pd.read_csv(todos_arquivos[0], sep=';', encoding='utf-8', quotechar='"')
-
 df_schedule = pd.read_csv(schedule_files[0], sep=';', encoding='utf-8', quotechar='"')
 
 
 schedules = {}
 for _, row in df_schedule.iterrows():
-    schedules[row["CÓDIGO ATENDIMENTO"]] = [row["CÓDIGO PACIENTE"], row['DATA INICIAL']]
+    schedules[row['CÓDIGO ATENDIMENTO']] = [row['CÓDIGO PACIENTE'], row['DATA INICIAL']]
 
 log_folder = path_file
 
@@ -55,14 +54,7 @@ not_inserted_cont = 0
 
 for idx, row in df.iterrows():
 
-    try:
-        schedule = schedules[row["CÓDIGO ATENDIMENTO"]]
-    except:
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Agendamento não encontrado para o histórico'
-        not_inserted_data.append(row_dict)
-        continue
+    schedule = schedules[row['CÓDIGO ATENDIMENTO']]
 
     id_record = row['CÓDIGO']
     if id_record in ['', None]:
@@ -80,8 +72,8 @@ for idx, row in df.iterrows():
             not_inserted_data.append(row_dict)
             continue
 
-    if row['PRESCRIÇÃO'] not in ['', None] and not pd.isna(row['PRESCRIÇÃO']):
-        record = f'Prescrição:<br>{row['PRESCRIÇÃO']}'
+    if row['ORIENTAÇÃO'] not in ['', None] and not pd.isna(row['ORIENTAÇÃO']):
+        record = f'Orientação:<br>{row["ORIENTAÇÃO"]}'
     else:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -140,5 +132,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_record_prescricoes.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_record_prescricoes.xlsx")
+create_log(log_data, log_folder, "log_inserted_record_orientacoes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_record_orientacoes.xlsx")

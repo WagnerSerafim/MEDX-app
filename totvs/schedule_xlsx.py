@@ -34,7 +34,7 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
-todos_arquivos = glob.glob(f'{path_file}/scheduling_CLINICA.xlsx')
+todos_arquivos = glob.glob(f'{path_file}/scheduling_*.xlsx')
 df = pd.read_excel(todos_arquivos[0], engine='openpyxl')
 
 log_folder = path_file

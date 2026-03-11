@@ -37,7 +37,7 @@ print("Sucesso! Inicializando migração de Agendamentos...")
 todos_arquivos = glob.glob(f'{path_file}/patients_appointments.csv')
 
 csv.field_size_limit(1000000000)  
-df = pd.read_csv(todos_arquivos[0], sep=';', encoding='utf-16')
+df = pd.read_csv(todos_arquivos[0], sep=';', encoding='utf-8')
 df = df.replace('None', '')
 
 log_folder = path_file

@@ -98,6 +98,7 @@ for idx, row in df.iterrows():
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
+
     id_patient_infos = patient_lookup.get(id_patient, {})
     if not id_patient_infos:
         not_inserted_cont +=1
@@ -129,7 +130,12 @@ for idx, row in df.iterrows():
 
     birthday_str = verify_nan(row["dataNascimento"])
     if birthday_str is None:
-        birthday = '1900-01-01'
+        not_inserted_cont +=1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Data de Nascimento vazia'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
     else:
         birthday_obj = datetime.strptime(birthday_str, "%Y-%m-%d")
         birthday = birthday_obj.strftime("%Y-%m-%d")

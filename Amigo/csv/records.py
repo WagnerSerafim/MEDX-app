@@ -58,6 +58,42 @@ def get_info(json_str, record):
         if json_str.get("199537"):
             record += f"Informações Extras:{json_str['199537']}<br>"
 
+        if json_str.get("112777"):
+            record += f"Informações Extras:{json_str['112777']}<br>"
+        
+        if json_str.get("112778"):
+            record += f"Informações Extras:{json_str['112778']}<br>"
+        
+        if json_str.get("112779"):
+            record += f"Informações Extras:{json_str['112779']}<br>"
+        
+        if json_str.get("112780"):
+            record += f"Informações Extras:{json_str['112780']}<br>"
+        
+        if json_str.get("112781"):
+            record += f"Informações Extras:{json_str['112781']}<br>"
+        
+        if json_str.get("112782"):
+            record += f"Informações Extras:{json_str['112782']}<br>"
+        
+        if json_str.get("112783"):
+            record += f"Informações Extras:{json_str['112783']}<br>"
+
+        if json_str.get("112784"):
+            record += f"Informações Extras:{json_str['112784']}<br>"
+        
+        if json_str.get("112785"):
+            record += f"Informações Extras:{json_str['112785']}<br>"
+
+        if json_str.get("112786"):
+            record += f"Informações Extras:{json_str['112786']}<br>"
+        
+        if json_str.get("112787"):
+            record += f"Informações Extras:{json_str['112787']}<br>"
+
+        if json_str.get("113784"):
+            record += f"Informações Extras:{json_str['113784']}<br>"
+
     return record, message
 
 def get_record(row):
@@ -103,7 +139,7 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Históricos...")
 
-csv.field_size_limit(10000000000000)
+csv.field_size_limit(1000000)
 todos_arquivos = glob.glob(f'{path_file}/records.csv')
 
 df = pd.read_csv(todos_arquivos[0], sep=',')
