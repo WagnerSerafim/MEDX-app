@@ -11,8 +11,6 @@ from utils.utils import clean_string, limpar_cpf, limpar_numero, truncate_value,
 
 BATCH_SIZE = 1000
 
-
-
 def main():
     source_engine, source_database = build_source_engine()
     target_engine, sid, dbase = build_target_engine()
@@ -62,7 +60,7 @@ def main():
                 [Observações] AS OBSERVACOES,
                 [Pai] AS PAI,
                 [RG] AS RG
-            FROM [dbo].[SWClinica]
+            FROM [dbo].[SWClientes]
             WHERE [Apagado] = 0 OR [Apagado] IS NULL
             ORDER BY [Código]
             """
