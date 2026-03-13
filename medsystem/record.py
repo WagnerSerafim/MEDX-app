@@ -147,12 +147,12 @@ def main():
         source_query = text(
             """
             SELECT
-                [Código] AS CODIGO,
+                [COdigo] AS CODIGO,
                 [Texto] AS TEXTO,
                 [Descrição] AS DESCRICAO,
                 [Código da Consulta] AS CODIGO_CONSULTA
             FROM [dbo].[SWConsim]
-            ORDER BY [Código]
+            ORDER BY [COdigo]
             """
         )
 

@@ -70,73 +70,80 @@ def _compose_datetime(date_raw, time_raw):
     return composed
 
 
-def _format_error_message(error):
-    details = []
-    message = str(error).strip()
-    if message:
-        details.append(message)
+def _format_exception(exc):
+    parts = [exc.__class__.__name__]
 
-    original = getattr(error, "orig", None)
+    message = str(exc).strip()
+    if message:
+        parts.append(message)
+
+    original = getattr(exc, "orig", None)
     if original is not None:
         original_message = str(original).strip()
-        if original_message and original_message not in details:
-            details.append(original_message)
+        if original_message and original_message != message:
+            parts.append(f"orig={original_message}")
 
         original_args = getattr(original, "args", None)
         if original_args:
-            args_text = " | ".join(str(item) for item in original_args if str(item).strip())
-            if args_text and args_text not in details:
-                details.append(args_text)
+            parts.append(f"args={original_args}")
 
-    if details:
-        return " | ".join(details)
-    return repr(error)
+    return " | ".join(parts)
 
 
-def _flush_batch(session, agenda_tbl, payload, existing_schedule_ids, inserted_log, not_inserted_log):
-    inserted_count = 0
-    not_inserted_count = 0
-
+def _flush_payload(
+    session,
+    agenda_tbl,
+    payload,
+    existing_schedule_ids,
+    inserted_log,
+    not_inserted_log,
+):
     if not payload:
-        return inserted_count, not_inserted_count
+        return 0, 0
+
+    records_to_insert = [item[1] for item in payload]
 
     try:
-        records_to_insert = [item[1] for item in payload]
         session.execute(insert(agenda_tbl), records_to_insert)
         session.commit()
-        inserted_count += len(records_to_insert)
+
         inserted_log.extend(records_to_insert)
         for committed_id, _ in payload:
             existing_schedule_ids.add(committed_id)
+
+        inserted = len(records_to_insert)
         payload.clear()
-        return inserted_count, not_inserted_count
+        return inserted, 0
+
     except Exception as batch_error:
         session.rollback()
-        batch_error_message = _format_error_message(batch_error)
+        batch_reason = _format_exception(batch_error)
 
-    for schedule_key, record in payload:
-        try:
-            session.execute(insert(agenda_tbl), [record])
-            session.commit()
-            inserted_count += 1
-            inserted_log.append(record)
-            existing_schedule_ids.add(schedule_key)
-        except Exception as row_error:
-            session.rollback()
-            not_inserted_count += 1
-            row_error_message = _format_error_message(row_error)
-            not_inserted_log.append(
-                {
-                    **record,
-                    "Motivo": (
-                        f"Falha no commit do lote: {batch_error_message} | "
-                        f"Falha no registro: {row_error_message}"
-                    ),
-                }
-            )
+        inserted = 0
+        not_inserted = 0
 
-    payload.clear()
-    return inserted_count, not_inserted_count
+        for schedule_key, rec in payload:
+            try:
+                session.execute(insert(agenda_tbl), [rec])
+                session.commit()
+
+                inserted += 1
+                inserted_log.append(rec)
+                existing_schedule_ids.add(schedule_key)
+
+            except Exception as row_error:
+                session.rollback()
+                not_inserted += 1
+                not_inserted_log.append(
+                    {
+                        **rec,
+                        "Motivo": f"Falha no commit do registro: {_format_exception(row_error)}",
+                        "Erro do lote": batch_reason,
+                    }
+                )
+
+        payload.clear()
+        return inserted, not_inserted
 
 
 def main():
@@ -172,7 +179,7 @@ def main():
         source_query = text(
             """
             SELECT
-                [Código] AS CODIGO,
+                [Codigo] AS CODIGO,
                 [Código do Cliente] AS CODIGO_CLIENTE,
                 [Código do Usuário] AS CODIGO_USUARIO,
                 [Data] AS DATA_INICIO,
@@ -180,7 +187,7 @@ def main():
                 [DataFinal] AS DATA_FINAL,
                 [HoraFinal] AS HORA_FINAL
             FROM [dbo].[SWConsultas]
-            ORDER BY [Código]
+            ORDER BY [Codigo]
             """
         )
 
@@ -225,7 +232,7 @@ def main():
                         continue
 
                     if str(id_user) == "1":
-                        id_user = 10
+                        id_user = 200038961
 
                     start_time = _compose_datetime(row["DATA_INICIO"], row["HORA_INICIO"])
                     if start_time is None:
@@ -250,7 +257,7 @@ def main():
                     payload.append((schedule_key, rec))
 
                     if len(payload) >= BATCH_SIZE:
-                        inserted_delta, not_inserted_delta = _flush_batch(
+                        inserted_batch, not_inserted_batch = _flush_payload(
                             session,
                             agenda_tbl,
                             payload,
@@ -258,8 +265,8 @@ def main():
                             inserted_log,
                             not_inserted_log,
                         )
-                        inserted_count += inserted_delta
-                        not_inserted_count += not_inserted_delta
+                        inserted_count += inserted_batch
+                        not_inserted_count += not_inserted_batch
 
                     if total_processed % 1000 == 0:
                         print(
@@ -270,10 +277,10 @@ def main():
 
                 except Exception as e:
                     not_inserted_count += 1
-                    not_inserted_log.append({**dict(row), "Motivo": _format_error_message(e)})
+                    not_inserted_log.append({**dict(row), "Motivo": str(e)})
 
         if payload:
-            inserted_delta, not_inserted_delta = _flush_batch(
+            inserted_batch, not_inserted_batch = _flush_payload(
                 session,
                 agenda_tbl,
                 payload,
@@ -281,8 +288,8 @@ def main():
                 inserted_log,
                 not_inserted_log,
             )
-            inserted_count += inserted_delta
-            not_inserted_count += not_inserted_delta
+            inserted_count += inserted_batch
+            not_inserted_count += not_inserted_batch
 
     inserted_log_path = write_jsonl_log(inserted_log, log_folder, f"log_inserted_schedule_medsystem_{dbase}.jsonl")
     not_inserted_log_path = write_jsonl_log(
