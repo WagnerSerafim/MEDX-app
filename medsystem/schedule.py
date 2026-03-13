@@ -179,7 +179,7 @@ def main():
         source_query = text(
             """
             SELECT
-                [Código] AS CODIGO,
+                [Codigo] AS CODIGO,
                 [Código do Cliente] AS CODIGO_CLIENTE,
                 [Código do Usuário] AS CODIGO_USUARIO,
                 [Data] AS DATA_INICIO,
@@ -187,7 +187,7 @@ def main():
                 [DataFinal] AS DATA_FINAL,
                 [HoraFinal] AS HORA_FINAL
             FROM [dbo].[SWConsultas]
-            ORDER BY [Código]
+            ORDER BY [Codigo]
             """
         )
 
