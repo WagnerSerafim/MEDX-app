@@ -34,7 +34,7 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Agendamentos...")
 
-csv.field_size_limit(10000000000000)
+csv.field_size_limit(100000000)
 
 todos_arquivos = glob.glob(f'{path_file}/attendances.csv')
 

@@ -54,9 +54,9 @@ session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-cadastro_file = glob.glob(f'{path_file}/Pacientes.csv')
+cadastro_file = glob.glob(f'{path_file}/DadosExportados*.xlsx')
 
-df = pd.read_csv(cadastro_file[0], engine='python', dtype=str, sep=';', quotechar='"')
+df = pd.read_excel(cadastro_file[0], engine='openpyxl', sheet_name='Pacientes', dtype=str)
 
 log_folder = path_file
 
@@ -73,7 +73,7 @@ for idx, row in df.iterrows():
     if idx % 1000 == 0 or idx == len(df):
         print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
 
-    id_patient = verify_nan(row["Id"])
+    id_patient = verify_nan(row["paciente_id"])
     if id_patient == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -82,7 +82,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
     
-    name = verify_nan(row["Nome"])
+    name = verify_nan(row["nome"])
     if name == None:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -91,7 +91,7 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    existing_record = exists(session, id_patient, "Referências", Contatos)
+    existing_record = exists(session, id_patient, "Id do Cliente", Contatos)
     if existing_record:
         not_inserted_cont +=1
         row_dict = row.to_dict()
@@ -100,40 +100,40 @@ for idx, row in df.iterrows():
         not_inserted_data.append(row_dict)
         continue
 
-    email = verify_nan(row["Email"])
+    email = verify_nan(row["email"])
 
     try:
-        birthday_obj = verify_nan(row["Data de Nascimento"])
+        birthday_obj = verify_nan(row["nascimento"])
         if birthday_obj == None:
             birthday = '1900-01-01'
         else:
-            birthday = datetime.strptime(birthday_obj, '%d/%m/%Y').strftime('%Y-%m-%d')
+            birthday = datetime.strptime(birthday_obj, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
             if not birthday or not is_valid_date(birthday, '%Y-%m-%d'):
                 birthday = '1900-01-01'
     except ValueError:
         birthday = '1900-01-01'
 
-    sex = verify_nan(row['Sexo'])
-    sex = 'F' if sex == 'Feminino' else 'M'
+    sex = verify_nan(row['sexo'])
+    sex = 'F' if sex == 'f' else 'M'
 
     mother = None
     father = None
-    rg = limpar_numero(verify_nan(row['RG']))
-    cpf = limpar_cpf(verify_nan(row['CPF']))
+    rg = limpar_numero(verify_nan(row['rg']))
+    cpf = limpar_cpf(verify_nan(row['cpf']))
     conjuge = None
-    observations = verify_nan(row['Observações'])
-    cellphone = limpar_numero(verify_nan(row['Telefone']))
-    phone = None
-    occupation = None
-    cep = limpar_numero(verify_nan(row['CEP']))
-    address = verify_nan(row['Endereço'])
-    number = verify_nan(row['Número'])
+    observations = verify_nan(row['obs'])
+    cellphone = limpar_numero(verify_nan(row['celular']))
+    phone = limpar_numero(verify_nan(row['telefone']))
+    occupation = verify_nan(row['profissao'])
+    cep = limpar_numero(verify_nan(row['cep']))
+    address = verify_nan(row['logradouro'])
+    number = verify_nan(row['numero'])
     if address:
         address = f"{address} {number}" if number else address
-    complement = verify_nan(row['Complemento'])
-    neighborhood = verify_nan(row['Bairro'])
-    city = verify_nan(row['Cidade'])
-    state = verify_nan(row['Estado'])
+    complement = verify_nan(row['complemento'])
+    neighborhood = verify_nan(row['bairro'])
+    city = verify_nan(row['cidade'])
+    state = verify_nan(row['uf'])
 
 
     new_patient = Contatos(
@@ -143,7 +143,7 @@ for idx, row in df.iterrows():
         Email=truncate_value(email, 100),
     )
 
-    setattr(new_patient, "Referências", id_patient)
+    setattr(new_patient, "Id do Cliente", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
     setattr(new_patient, "Pai", truncate_value(father, 50))
     setattr(new_patient, "Mãe", truncate_value(mother, 50))
@@ -162,7 +162,7 @@ for idx, row in df.iterrows():
 
     
     log_data.append({
-        "Referências": id_patient,
+        "Id do Cliente": id_patient,
         "Nome": name,
         "Nascimento": birthday,
         "Sexo": sex,

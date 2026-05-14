@@ -117,8 +117,6 @@ def main():
     metadata = MetaData()
     historico_tbl = Table("Histórico de Clientes", metadata, schema=f"schema_{sid}", autoload_with=target_engine)
 
-    history_columns = {column.name for column in historico_tbl.columns}
-
     SessionLocal = sessionmaker(bind=target_engine, future=True)
 
     inserted_log = []
@@ -134,25 +132,17 @@ def main():
         )
         existing_history_ids = {str(row[0]) for row in existing_history_ids_result if row[0] is not None}
 
-        agenda_result = session.execute(text(f"SELECT [Id do Agendamento], [Vinculado a] FROM [schema_{sid}].[Agenda]"))
-        client_by_schedule_id = {
-            str(row[0]): row[1]
-            for row in agenda_result
-            if row[0] is not None and row[1] is not None
-        }
-
         print(f"Históricos existentes carregados: {len(existing_history_ids)}")
-        print(f"Agendamentos em memória para vínculo paciente: {len(client_by_schedule_id)}")
 
         source_query = text(
             """
             SELECT
-                [COdigo] AS CODIGO,
+                [Codigo] AS CODIGO,
                 [Texto] AS TEXTO,
                 [Descrição] AS DESCRICAO,
                 [Código da Consulta] AS CODIGO_CONSULTA
             FROM [dbo].[SWConsim]
-            ORDER BY [COdigo]
+            ORDER BY [Codigo]
             """
         )
 
@@ -183,17 +173,16 @@ def main():
                         not_inserted_log.append({**dict(row), "Motivo": "Histórico vazio"})
                         continue
 
-                    id_schedule = verify_nan(row["CODIGO_CONSULTA"])
-                    if id_schedule is None:
-                        not_inserted_count += 1
-                        not_inserted_log.append({**dict(row), "Motivo": "Id do Agendamento vazio"})
-                        continue
-
-                    schedule_key = str(id_schedule).strip()
-                    id_client = client_by_schedule_id.get(schedule_key)
+                    id_client = verify_nan(row["CODIGO_CONSULTA"])
                     if id_client is None:
                         not_inserted_count += 1
-                        not_inserted_log.append({**dict(row), "Motivo": "Agendamento não encontrado na Agenda"})
+                        not_inserted_log.append({**dict(row), "Motivo": "Id do Cliente vazio"})
+                        continue
+
+                    id_client = str(id_client).strip()
+                    if not id_client:
+                        not_inserted_count += 1
+                        not_inserted_log.append({**dict(row), "Motivo": "Id do Cliente inválido"})
                         continue
 
                     history_date = _normalize_record_date(row["DESCRICAO"])
@@ -205,9 +194,6 @@ def main():
                         "Data": history_date,
                         "Id do Usuário": 0,
                     }
-
-                    if "Id do Agendamento" in history_columns:
-                        rec["Id do Agendamento"] = id_schedule
 
                     payload.append((history_key, rec))
 

@@ -34,7 +34,7 @@ session = SessionLocal()
 print("Sucesso! Inicializando migração de Receituários...")
 
 csv.field_size_limit(10000000)
-todos_arquivos = glob.glob(f'{path_folder}/Fórmulas.csv')
+todos_arquivos = glob.glob(f'{path_folder}/Fórmulas.csv')
 
 df = pd.read_csv(todos_arquivos[0], sep=';', engine='python', quotechar='"', encoding='latin1')
 

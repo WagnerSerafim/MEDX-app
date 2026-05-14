@@ -4,20 +4,20 @@ import requests
 from urllib.parse import urlparse
 
 # Caminho do Excel
-excel_path = r"D:\Migracoes\Schema_36275_GestaoDS\fa160b989dc4c1daed94aa5209912280 (2)\pacientes_arquivos.xlsx"
+excel_path = r"D:\Migracoes\gestaods\cd446826785a496bd24f29cab9c38748\pacientes_arquivos.csv"
 
 # Pasta onde os arquivos serão salvos
-output_folder = r"D:\Migracoes\Schema_36275_GestaoDS\fa160b989dc4c1daed94aa5209912280 (2)\anexos"
+output_folder = r"D:\Migracoes\gestaods\cd446826785a496bd24f29cab9c38748\anexos"
 
 # Cria a pasta se ela não existir
 os.makedirs(output_folder, exist_ok=True)
 
-# Lê o Excel
-df = pd.read_excel(excel_path)
+# Lê o CSV
+df = pd.read_csv(excel_path, encoding="utf-8", sep=";", quotechar='"')
 
 # Verifica se existe a coluna 'Arquivo'
 if "Arquivo" not in df.columns:
-    raise Exception("A coluna 'Arquivo' não existe no Excel.")
+    raise Exception("A coluna 'Arquivo' não existe no CSV.")
 
 for index, url in enumerate(df["Arquivo"]):
     if pd.isna(url):

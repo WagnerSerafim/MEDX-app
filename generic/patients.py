@@ -1,201 +1,296 @@
 import glob
+import math
 import os
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-import pandas as pd
 import urllib
-from utils.utils import *
+from datetime import datetime
 
-sid = input("Informe o SoftwareID: ")
-password = urllib.parse.quote_plus(input("Informe a senha: "))
-dbase = input("Informe o DATABASE: ")
-path_file = input("Informe o caminho da pasta que contém os arquivos: ")
+import pandas as pd
+from sqlalchemy import MetaData, Table, create_engine, insert, select
+from sqlalchemy.pool import NullPool
 
-print("Conectando no Banco de dados...")
+from utils.utils import create_log
 
-try:
-    DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
 
-    engine = create_engine(DATABASE_URL)
+BATCH_SIZE = 500
+EXISTING_ID_FETCH_CHUNK = 1000
 
-    Base = automap_base()
-    Base.prepare(autoload_with=engine)
 
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
+def clean_value(value):
+    if pd.isna(value) or value in [None, "None"]:
+        return ""
+    return str(value).strip()
 
-    Contatos = Base.classes.Contatos
 
-except Exception as e:
-    print(f"Erro ao conectar ao banco de dados: {e}")
-    exit()
+def truncate_value(value, max_len):
+    value = clean_value(value)
+    return value[:max_len] if len(value) > max_len else value
 
-print("Sucesso! Começando migração de pacientes...")
 
-excel_file = glob.glob(f'{path_file}/dados*.xlsx')
-df = pd.read_excel(excel_file[0], sheet_name = 'pacientes')
-df = df.replace('None', '')
+def parse_birthdate(value):
+    value = clean_value(value)
+    if not value:
+        return "1900-01-01"
 
-log_folder = path_file
+    accepted_formats = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%d/%m/%Y %H:%M:%S",
+    ]
 
-if not os.path.exists(log_folder):
-    os.makedirs(log_folder)
+    for fmt in accepted_formats:
+        try:
+            dt = datetime.strptime(value, fmt)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
 
-log_data = []
-inserted_cont=0
-not_inserted_data = []
-not_inserted_cont = 0
-existId = True
+    return "1900-01-01"
 
-for _, row in df.iterrows():
 
-    if 'ID' in df.columns:
-        if row['ID'] in [None, '', 'None']:
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id do Cliente vazio'
-            not_inserted_data.append(row_dict)
-            continue
-        # Só permite IDs numéricos
-        if not str(row['ID']).isdigit():
-            not_inserted_cont += 1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id do Cliente não é numérico'
-            not_inserted_data.append(row_dict)
-            continue
-        id_patient = int(row["ID"])
-        existing_patient = exists(session, id_patient, "Id do Cliente", Contatos)
-        if existing_patient:
-            not_inserted_cont +=1
-            row_dict = row.to_dict()
-            row_dict['Motivo'] = 'Id do Cliente já existe no Banco de Dados'
-            not_inserted_data.append(row_dict)
-            continue
-    else:
-        existId = False
+def normalize_sex(value):
+    value = clean_value(value).lower()
+    if value in {"f", "feminino"}:
+        return "F"
+    return "M"
 
-    if 'NASCIMENTO' in df.columns:
-        if is_valid_date(str(row['NASCIMENTO']), '%Y-%m-%d %H:%M:%S'):
-            birthday = str(row['NASCIMENTO'])
-        else:
-            birthday = '1900-01-01'
 
-    if 'SEXO' in df.columns:
-        if row['SEXO'] == 'F':
-            sex = "F"
-        else:
-            sex = "M"
-    else:
-        sex = "M"
+def chunked(iterable, size):
+    for i in range(0, len(iterable), size):
+        yield iterable[i:i + size]
 
-    if 'NUMERO' in df.columns and 'ENDERECO' in df.columns:
-        if row["NUMERO"] in [None, '', 'None']:
-            address = row["ENDERECO"]
-        else:
-            number = str(row["NUMERO"]) 
-            address = f"{row['ENDERECO']} {number}"
-    elif 'ENDERECO' in df.columns:
-        address = row["ENDERECO"]
-    else:
-        address = ''
 
-    if row['NOME'] in [None, '', 'None'] or pd.isna(row['NOME']):
-        not_inserted_cont += 1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Nome vazio'
-        not_inserted_data.append(row_dict)
-        continue
-    else:
-        name = truncate_value(clean_value(row["NOME"]), 50)
-    
-        
-    rg = truncate_value(clean_value(verify_column_exists("RG", df, row)), 25)
+def get_existing_ids(engine, contatos_table, ids_to_check):
+    """
+    Busca IDs existentes no banco em lotes, para evitar 1 SELECT por linha.
+    """
+    existing_ids = set()
+    if not ids_to_check:
+        return existing_ids
 
-    cpf = truncate_value(clean_value(verify_column_exists("CPF", df, row)), 25)
+    id_column = contatos_table.c["Id do Cliente"]
 
-    cellphone = truncate_value(clean_value(verify_column_exists("CELULAR", df, row)), 25)
+    for batch_ids in chunked(ids_to_check, EXISTING_ID_FETCH_CHUNK):
+        with engine.connect() as conn:
+            stmt = select(id_column).where(id_column.in_(batch_ids))
+            rows = conn.execute(stmt).fetchall()
+            existing_ids.update(row[0] for row in rows if row[0] is not None)
 
-    email = truncate_value(clean_value(verify_column_exists("EMAIL", df, row)), 100)
+    return existing_ids
 
-    occupation = truncate_value(clean_value(verify_column_exists("PROFISSAO", df, row)), 25)
 
-    cep = truncate_value(clean_value(verify_column_exists("CEP", df, row)), 10)
+def build_patient_dict(row, has_id, has_reference):
+    name = truncate_value(row.get("NOME", ""), 50)
+    if not name:
+        return None, "Nome vazio"
 
-    complement = truncate_value(clean_value(verify_column_exists("COMPLEMENTO", df, row)), 50)
+    address = ""
+    endereco = clean_value(row.get("ENDERECO", ""))
+    numero = clean_value(row.get("NUMERO", ""))
 
-    neighbourhood = truncate_value(clean_value(verify_column_exists("BAIRRO", df, row)), 25)
+    if endereco and numero:
+        address = f"{endereco} {numero}"
+    elif endereco:
+        address = endereco
 
-    city = truncate_value(clean_value(verify_column_exists("CIDADE", df, row)), 25)
+    patient = {
+        "Nome": name,
+        "Nascimento": parse_birthdate(row.get("NASCIMENTO", "")),
+        "Sexo": normalize_sex(row.get("SEXO", "")),
+        "Celular": truncate_value(row.get("CELULAR", ""), 25),
+        "Email": truncate_value(row.get("EMAIL", ""), 100),
+        "CPF/CGC": truncate_value(row.get("CPF", ""), 25),
+        "Cep Residencial": truncate_value(row.get("CEP", ""), 10),
+        "Endereço Residencial": truncate_value(address, 50),
+        "Endereço Comercial": truncate_value(row.get("COMPLEMENTO", ""), 50),
+        "Bairro Residencial": truncate_value(row.get("BAIRRO", ""), 25),
+        "Cidade Residencial": truncate_value(row.get("CIDADE", ""), 25),
+        "Telefone Residencial": truncate_value(row.get("TELEFONE", ""), 25),
+        "Profissão": truncate_value(row.get("PROFISSAO", ""), 25),
+        "Pai": truncate_value(row.get("PAI", ""), 50),
+        "Mãe": truncate_value(row.get("MAE", ""), 50),
+        "RG": truncate_value(row.get("RG", ""), 25),
+        "Observações": clean_value(row.get("OBSERVACOES", "")),
+    }
 
-    father = truncate_value(clean_value(verify_column_exists("PAI", df, row)), 50)
+    if has_id:
+        patient["Id do Cliente"] = int(clean_value(row["ID"]))
 
-    mother = truncate_value(clean_value(verify_column_exists("MAE", df, row)), 50)
+    if has_reference:
+        reference = clean_value(row.get("REFERENCIAS", ""))
+        if reference:
+            patient["Referências"] = reference
 
-    home_phone = truncate_value(clean_value(verify_column_exists("TELEFONE", df, row)), 25)
+    return patient, None
 
-    insurance = clean_value(verify_column_exists("CONVENIO", df, row))
 
-    observation = clean_value(verify_column_exists("OBSERVACOES", df, row))
-    address = truncate_value(clean_value(address), 50)
+def main():
+    sid = input("Informe o SoftwareID: ").strip()
+    password = urllib.parse.quote_plus(input("Informe a senha: ").strip())
+    dbase = input("Informe o DATABASE: ").strip()
+    path_file = input("Informe o caminho da pasta que contém os arquivos: ").strip()
 
-    new_patient = Contatos(
-        Nome=name,
-        Nascimento=birthday,
-        Sexo=sex,
-        Celular=cellphone,
-        Email=email,
+    print("Conectando no banco de dados...")
+
+    database_url = (
+        f"mssql+pyodbc://Medizin_{sid}:{password}"
+        f"@medxserver.database.windows.net:1433/{dbase}"
+        f"?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
     )
 
-    if existId:
-        setattr(new_patient, "Id do cliente", id_patient)
-        log_data.append({"Id do Cliente": id_patient})
-    setattr(new_patient, "CPF/CGC", cpf)
-    setattr(new_patient, "Cep Residencial", cep)
-    setattr(new_patient, "Endereço Residencial", address)
-    setattr(new_patient, "Endereço Comercial", complement)
-    setattr(new_patient, "Bairro Residencial", neighbourhood)
-    setattr(new_patient, "Cidade Residencial", city)
-    setattr(new_patient, "Telefone Residencial", home_phone)
-    setattr(new_patient, "Profissão", occupation)
-    setattr(new_patient, "Pai", father)
-    setattr(new_patient, "Mãe", mother)
-    setattr(new_patient, "RG", rg)
-    setattr(new_patient, "Observações", observation)
-    
-    log_data.append({
-        "Nome": name,
-        "Nascimento": birthday,
-        "Sexo": sex,
-        "CPF/CGC": cpf,
-        "RG" : rg,
-        "Profissão": occupation,
-        "Pai": father,
-        "Mãe": mother,
-        "Telefone Residencial": home_phone,
-        "Celular": cellphone,
-        "Email": email,
-        "Cep Residencial": cep,
-        "Endereço Residencial": address,
-        "Endereço Comercial": complement,
-        "Bairro Residencial": neighbourhood,
-        "Cidade Residencial": city,
-        "Observações": observation
-    })
+    try:
+        engine = create_engine(
+            database_url,
+            poolclass=NullPool,          # não mantém conexão presa
+            fast_executemany=True,       # acelera inserção em lote no pyodbc
+            use_insertmanyvalues=False,  # favorece executemany no SQL Server
+            future=True,
+        )
 
-    session.add(new_patient)
+        metadata = MetaData()
+        contatos = Table("Contatos", metadata, autoload_with=engine)
+        contatos_columns = set(contatos.c.keys())
 
-    inserted_cont+=1
-    if inserted_cont % 1000 == 0:
-        session.commit()
+    except Exception as e:
+        print(f"Erro ao conectar ao banco de dados: {e}")
+        return
 
-session.commit()
+    print("Conexão bem-sucedida. Lendo planilha...")
 
-print(f"{inserted_cont} novos contatos foram inseridos com sucesso!")
-if not_inserted_cont > 0:
-    print(f"{not_inserted_cont} contatos não foram inseridos, verifique o log para mais detalhes.")
+    excel_files = glob.glob(os.path.join(path_file, "dados*.xlsx"))
+    if not excel_files:
+        print("Nenhum arquivo 'dados*.xlsx' foi encontrado.")
+        return
 
-session.close()
+    df = pd.read_excel(
+        excel_files[0],
+        sheet_name="pacientes",
+        dtype=str
+    ).fillna("")
 
-create_log(log_data, log_folder, "log_inserted_patients.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_patients.xlsx")
+    # Normaliza nomes das colunas uma vez só
+    df.columns = [str(col).strip().upper() for col in df.columns]
+
+    has_id = "ID" in df.columns
+    has_db_id_column = "Id do Cliente" in contatos_columns
+    has_reference = "REFERENCIAS" in df.columns and "Referências" in contatos_columns
+
+    if has_id and not has_db_id_column:
+        print("A planilha tem coluna ID, mas a tabela Contatos não possui 'Id do Cliente'.")
+        print("Não é possível inserir mantendo o ID de origem nesse banco.")
+        return
+
+    if "REFERENCIAS" in df.columns and "Referências" not in contatos_columns:
+        print("Aviso: coluna 'Referências' não existe na tabela Contatos deste banco e será ignorada.")
+
+    inserted_log = []
+    not_inserted_log = []
+
+    # Pré-validação local dos IDs
+    ids_from_file = []
+    duplicated_ids_in_file = set()
+
+    if has_id:
+        seen = set()
+        for raw_id in df["ID"].tolist():
+            raw_id = clean_value(raw_id)
+
+            if not raw_id:
+                continue
+
+            if not raw_id.isdigit():
+                continue
+
+            numeric_id = int(raw_id)
+            if numeric_id in seen:
+                duplicated_ids_in_file.add(numeric_id)
+            else:
+                seen.add(numeric_id)
+                ids_from_file.append(numeric_id)
+
+        print("Consultando IDs existentes no banco em lote...")
+        existing_ids = get_existing_ids(engine, contatos, ids_from_file)
+    else:
+        existing_ids = set()
+
+    rows_to_insert = []
+
+    for row in df.to_dict(orient="records"):
+        if has_id:
+            raw_id = clean_value(row.get("ID", ""))
+
+            if not raw_id:
+                row["Motivo"] = "Id do Cliente vazio"
+                not_inserted_log.append(row)
+                continue
+
+            if not raw_id.isdigit():
+                row["Motivo"] = "Id do Cliente não é numérico"
+                not_inserted_log.append(row)
+                continue
+
+            numeric_id = int(raw_id)
+
+            if numeric_id in duplicated_ids_in_file:
+                row["Motivo"] = "Id do Cliente duplicado no arquivo"
+                not_inserted_log.append(row)
+                continue
+
+            if numeric_id in existing_ids:
+                row["Motivo"] = "Id do Cliente já existe no banco de dados"
+                not_inserted_log.append(row)
+                continue
+
+        patient_dict, reason = build_patient_dict(row, has_id, has_reference)
+        if reason:
+            row["Motivo"] = reason
+            not_inserted_log.append(row)
+            continue
+
+        # Evita erro de "coluna inválida" quando o schema do cliente é diferente.
+        patient_dict = {k: v for k, v in patient_dict.items() if k in contatos_columns}
+        rows_to_insert.append(patient_dict)
+
+    total_to_insert = len(rows_to_insert)
+    inserted_count = 0
+
+    print(f"Preparados {total_to_insert} registros para inserção.")
+
+    # Inserção em lotes com conexões curtas
+    for batch in chunked(rows_to_insert, BATCH_SIZE):
+        try:
+            with engine.begin() as conn:
+                conn.execute(insert(contatos), batch)
+            inserted_count += len(batch)
+            inserted_log.extend(item.copy() for item in batch)
+            print(f"Inseridos {inserted_count}/{total_to_insert}")
+        except Exception as e:
+            # Se um batch falhar, tenta inserção item a item para isolar erro real.
+            for item in batch:
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(insert(contatos), [item])
+                    inserted_count += 1
+                    inserted_log.append(item.copy())
+                except Exception as item_error:
+                    fail_item = item.copy()
+                    fail_item["Motivo"] = f"Erro ao inserir: {item_error} | erro_lote: {e}"
+                    not_inserted_log.append(fail_item)
+
+            print(f"Lote com falha, fallback individual concluído. Inseridos {inserted_count}/{total_to_insert}")
+
+    print(f"{inserted_count} novos contatos foram inseridos com sucesso!")
+
+    if not_inserted_log:
+        print(f"{len(not_inserted_log)} contatos não foram inseridos, verifique o log.")
+
+    os.makedirs(path_file, exist_ok=True)
+    create_log(inserted_log, path_file, "log_inserted_patients.xlsx")
+    create_log(not_inserted_log, path_file, "log_not_inserted_patients.xlsx")
+
+    engine.dispose()
+    print("Processo finalizado.")
+
+
+if __name__ == "__main__":
+    main()

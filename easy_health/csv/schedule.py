@@ -44,7 +44,7 @@ log_data = []
 inserted_cont = 0
 not_inserted_data = []
 not_inserted_cont = 0
-id_scheduling = 0
+id_scheduling = -43596
 
 for idx, row in df.iterrows():
 

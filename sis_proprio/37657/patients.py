@@ -1,34 +1,51 @@
 from datetime import datetime
 import glob
 import os
-import re
+import sys
+import urllib
+
 from sqlalchemy import MetaData, Table, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.exc import DataError, IntegrityError
 import pandas as pd
-import urllib
-from utils.utils import is_valid_date, exists, create_log, truncate_value, verify_nan
-import csv
-    
-def limpar_numero(valor):
-    if valor is None:
-        return None
-    valor_str = str(valor)
-    if valor_str.endswith('.0'):
-        valor_str = valor_str[:-2]
-    valor_str = valor_str.strip()
-    return valor_str
 
-def limpar_cpf(valor):
-    if valor is None:
-        return None
-    valor_str = str(valor)
-    if valor_str.endswith('.0'):
-        valor_str = valor_str[:-2]
-    valor_str = re.sub(r'\D', '', valor_str)
-    if len(valor_str) < 11 and len(valor_str) > 0:
-        valor_str = valor_str.zfill(11)
-    return valor_str if valor_str else None
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+from utils.utils import (
+    is_valid_date,
+    exists,
+    create_log,
+    truncate_value,
+    verify_nan,
+    limpar_numero,
+    limpar_cpf,
+)
+
+
+def parse_birthday(value):
+    value = verify_nan(value)
+    if value is None:
+        return '1900-01-01'
+    raw = str(value).strip()
+    for fmt in ('%d/%m/%Y %H:%M', '%d/%m/%Y %H:%M:%S', '%d/%m/%Y'):
+        try:
+            parsed = datetime.strptime(raw, fmt).strftime('%Y-%m-%d')
+            if is_valid_date(parsed, '%Y-%m-%d') and not parsed.startswith('1900-01-01'):
+                return parsed
+            return parsed if is_valid_date(parsed, '%Y-%m-%d') else '1900-01-01'
+        except ValueError:
+            continue
+    return '1900-01-01'
+
+
+def parse_sex(value):
+    value = verify_nan(value)
+    if value is None:
+        return 'M'
+    value = str(value).strip().upper()
+    if value.startswith('F'):
+        return 'F'
+    return 'M'
+
 
 sid = input("Informe o SoftwareID: ")
 password = urllib.parse.quote_plus(input("Informe a senha: "))
@@ -37,7 +54,10 @@ path_file = input("Informe o caminho da pasta que contém os arquivos: ")
 
 print("Conectando no Banco de Dados...")
 
-DATABASE_URL = f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
+DATABASE_URL = (
+    f"mssql+pyodbc://Medizin_{sid}:{password}@medxserver.database.windows.net:1433/"
+    f"{dbase}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no"
+)
 
 engine = create_engine(DATABASE_URL)
 
@@ -46,91 +66,102 @@ contatos_tbl = Table("Contatos", metadata, schema=f"schema_{sid}", autoload_with
 
 Base = declarative_base()
 
+
 class Contatos(Base):
     __table__ = contatos_tbl
+
 
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 print("Sucesso! Inicializando migração de Contatos...")
 
-cadastro_file = glob.glob(f'{path_file}/Listapacientescsv*.csv')
+cadastro_file = glob.glob(f'{path_file}/Pacientes_exporta_dados*.csv')
+if not cadastro_file:
+    raise FileNotFoundError(f"Nenhum arquivo Pacientes_exporta_dados*.csv encontrado em {path_file}")
 
-df = pd.read_csv(cadastro_file[0], engine='python', dtype=str, sep=';', quotechar='"', encoding='utf-8', on_bad_lines='skip')
+try:
+    df = pd.read_csv(cadastro_file[0], engine='python', dtype=str, sep=';', quotechar='"', encoding='utf-8')
+except UnicodeDecodeError:
+    df = pd.read_csv(cadastro_file[0], engine='python', dtype=str, sep=';', quotechar='"', encoding='latin1')
 
 log_folder = path_file
-
 if not os.path.exists(log_folder):
     os.makedirs(log_folder)
 
 log_data = []
-inserted_cont=0
+inserted_cont = 0
 not_inserted_data = []
 not_inserted_cont = 0
 
+total = len(df)
+
 for idx, row in df.iterrows():
 
-    if idx % 1000 == 0 or idx == len(df):
-        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {round((idx / len(df)) * 100, 2)}%")
+    if idx % 1000 == 0 or idx == total:
+        pct = round((idx / total) * 100, 2) if total else 0
+        print(f"Processados: {idx} | Inseridos: {inserted_cont} | Não inseridos: {not_inserted_cont} | Concluído: {pct}%")
 
-    id_patient = verify_nan(row["COD"])
-    if id_patient == None:
-        not_inserted_cont +=1
+    id_patient = verify_nan(row["Paciente_Codigo"])
+    if id_patient is None:
+        not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente vazio'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
-    try:
-        id_patient = int(id_patient)
-    except ValueError:
-        not_inserted_cont +=1
-        row_dict = row.to_dict()
-        row_dict['Motivo'] = 'Id do Cliente inválido'
-        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        not_inserted_data.append(row_dict)
-        continue
-    
-    name = verify_nan(row["NOME DO PACIENTE"])
-    if name == None:
-        not_inserted_cont +=1
+
+    name = verify_nan(row["paciente_nome"])
+    if name is None:
+        not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Nome do Paciente vazio'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
 
+    inativo = verify_nan(row.get("inativo"))
+    if inativo is not None and str(inativo).strip().lower() == 'true':
+        not_inserted_cont += 1
+        row_dict = row.to_dict()
+        row_dict['Motivo'] = 'Paciente inativo'
+        row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        not_inserted_data.append(row_dict)
+        continue
+
     existing_record = exists(session, id_patient, "Referências", Contatos)
     if existing_record:
-        not_inserted_cont +=1
+        not_inserted_cont += 1
         row_dict = row.to_dict()
         row_dict['Motivo'] = 'Id do Cliente já existe no Banco de Dados'
         row_dict['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         not_inserted_data.append(row_dict)
         continue
 
-    email = None
+    email = verify_nan(row["paciente_email"])
+    birthday = parse_birthday(row["paciente_nascimento"])
+    sex = parse_sex(row['paciente_sexo'])
 
-    birthday = '1900-01-01'
+    rg = limpar_numero(verify_nan(row['paciente_rg']))
+    cpf = limpar_cpf(verify_nan(row['paciente_cpf']))
+    cellphone = limpar_numero(verify_nan(row['paciente_celular']))
+    phone = limpar_numero(verify_nan(row['telefone']))
+    occupation = verify_nan(row['paciente_profissao'])
+    observations = verify_nan(row['observacoes'])
+    conjuge = verify_nan(row['conjuge_nome'])
 
-    sex = None
+    cep = limpar_numero(verify_nan(row['cep']))
+    address = verify_nan(row['endereco'])
+    number = verify_nan(row['Numero'])
+    if address and number:
+        address = f"{address} {number}"
+    complement = verify_nan(row['complemento'])
+    neighborhood = verify_nan(row['bairro'])
+    city = verify_nan(row['cidade'])
+    state = verify_nan(row['estado'])
 
     mother = None
     father = None
-    rg = None
-    cpf = None
-    conjuge = None
-    observations = None
-    cellphone = limpar_numero(verify_nan(row['CELULAR']))
-    phone = None
-    occupation = verify_nan(row['PROFISSAO'])
-    cep = None
-    address = verify_nan(row['ENDEREÇO'])
-    complement = None
-    neighborhood = None
-    city = verify_nan(row['CIDADE'])
-    state = None
-
 
     new_patient = Contatos(
         Nome=truncate_value(name, 50),
@@ -139,7 +170,6 @@ for idx, row in df.iterrows():
         Email=truncate_value(email, 100),
     )
 
-    # setattr(new_patient, "Id da Assinatura", id_patient)
     setattr(new_patient, "Referências", id_patient)
     setattr(new_patient, "CPF/CGC", truncate_value(cpf, 25))
     setattr(new_patient, "Pai", truncate_value(father, 50))
@@ -157,7 +187,6 @@ for idx, row in df.iterrows():
     setattr(new_patient, "Estado Residencial", truncate_value(state, 2))
     setattr(new_patient, "Profissão", truncate_value(occupation, 25))
 
-    
     log_data.append({
         "Referências": id_patient,
         "Nome": name,
@@ -179,12 +208,12 @@ for idx, row in df.iterrows():
         "Cidade Residencial": city,
         "Estado Residencial": state,
         "Profissão": occupation,
-        "TimeStamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "TimeStamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
 
     session.add(new_patient)
 
-    inserted_cont+=1
+    inserted_cont += 1
     if inserted_cont % 1000 == 0:
         session.commit()
 
@@ -196,5 +225,5 @@ if not_inserted_cont > 0:
 
 session.close()
 
-create_log(log_data, log_folder, "log_inserted_Listapacientescsv.xlsx")
-create_log(not_inserted_data, log_folder, "log_not_inserted_Listapacientescsv.xlsx")
+create_log(log_data, log_folder, "log_inserted_pacientes.xlsx")
+create_log(not_inserted_data, log_folder, "log_not_inserted_pacientes.xlsx")
